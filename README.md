@@ -6,7 +6,7 @@ A collection of 14 browser games in **English and Arabic**: quick brain games, w
 
 ## Play online
 
-**Website:** https://aminabouzenadapro.github.io/pocket-arcade/ (Arabic: https://aminabouzenadapro.github.io/pocket-arcade/#ar is set by the switch on the page)
+**Website:** https://aminabouzenadapro.github.io/pocket-arcade/ (use the English / العربية switch at the top for Arabic)
 
 For live multiplayer with friends, use the claude.ai links:
 
@@ -36,7 +36,7 @@ python -m http.server 8000
 
 Then go to http://localhost:8000.
 
-Add `#ar` to any game's address to open it in Arabic, for example `time-thread.html#ar`. Each game also has an English / العربية switch.
+Every page has an English / العربية switch. You can also add `#ar` to the address of Comet Party, Time Thread or Orbit Keeper to open it in Arabic, for example `time-thread.html#ar`.
 
 ## Notes
 

@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Time Thread</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Literata:opsz,wght@7..72,400;7..72,600&family=IBM+Plex+Mono:wght@500;600&family=Cairo:wght@500;700;900&display=swap">
+<style>
+/* Layout: one column — status strip, the card in hand, then the thread of placed cards with a drop slot in every gap; racers rail stacks above on phones, sits right on desktop */
+:root {
+  --deep: #0e2a2f;
+  --deep-2: #163a40;
+  --line: #2b5961;
+  --paper: #f1f5f2;
+  --paper-ink: #13292c;
+  --ink: #e9f3f1;
+  --dim: #93b3b0;
+  --thread: #ff9f1c;
+  --right: #2ec4b6;
+  --wrong: #ff5a5f;
+  --font-display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Literata', Georgia, 'Times New Roman', serif;
+  --font-year: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--deep); color: var(--ink); font-family: var(--font-body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+:root[lang="ar"] { --font-display: 'Cairo', 'Segoe UI', Tahoma, sans-serif; --font-body: 'Cairo', 'Segoe UI', Tahoma, sans-serif; }
+:root[lang="ar"] .menu h1 { font-weight: 900; letter-spacing: 0; line-height: 1.15; }
+:root[lang="ar"] .card .cat, :root[lang="ar"] .panel label, :root[lang="ar"] .or, :root[lang="ar"] .thread-head span { letter-spacing: 0; font-family: 'Cairo', sans-serif; }
+:root[lang="ar"] .card .ev { line-height: 1.6; }
+:root[lang="ar"] .menu p, :root[lang="ar"] .instr, :root[lang="ar"] .reveal p { line-height: 1.85; }
+:root[lang="ar"] .slot::after { content: " ضعها هنا"; font-family: 'Cairo', sans-serif; }
+.langsw { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.langsw button { font: 600 13px var(--font-body); border: 0; background: transparent; color: var(--ink); padding: 6px 12px; cursor: pointer; }
+.langsw button[lang="ar"] { font-family: 'Cairo', sans-serif; font-weight: 700; }
+.langsw button[aria-pressed="true"] { background: var(--thread); color: var(--paper-ink); }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 20px; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.app.race { grid-template-columns: minmax(0, 1fr) 240px; }
+@media (max-width: 760px) { .app.race { grid-template-columns: minmax(0, 1fr); } .app.race .rail { order: -1; } }
+
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--font-display); font-weight: 800; font-size: 22px; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
+.brand::before { content: ""; width: 26px; height: 4px; background: var(--thread); border-radius: 2px; }
+.stats { display: flex; gap: 18px; font-family: var(--font-year); font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.stats b { color: var(--ink); font-weight: 600; }
+.hearts { color: var(--wrong); letter-spacing: 2px; }
+
+/* buttons */
+.btn {
+  font: 800 15px var(--font-display); color: var(--paper-ink); background: var(--thread);
+  border: 0; border-radius: 10px; padding: 12px 18px; cursor: pointer;
+}
+.btn:hover { filter: brightness(1.07); }
+.btn.alt { background: transparent; color: var(--ink); border: 2px solid var(--line); }
+.btn.small { font-size: 13px; padding: 8px 12px; }
+.btn:disabled { opacity: .4; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--thread); outline-offset: 2px; }
+
+/* menu */
+.menu { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; align-items: center; padding-block: 24px; }
+@media (max-width: 760px) { .menu { grid-template-columns: minmax(0, 1fr); } }
+.menu h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(44px, 9vw, 84px); line-height: .92; margin: 0 0 16px; letter-spacing: -.03em; text-wrap: balance; }
+.menu h1 span { color: var(--thread); }
+.menu p { color: var(--dim); font-size: 17px; line-height: 1.6; max-width: 46ch; margin: 0 0 12px; }
+.panel { background: var(--deep-2); border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: grid; gap: 14px; }
+.panel label { font: 600 12px var(--font-year); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.field { display: grid; gap: 6px; }
+input[type=text] { font: 600 16px var(--font-body); color: var(--ink); background: var(--deep); border: 2px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; }
+input[type=text]:focus { outline: none; border-color: var(--thread); }
+.code-in { font-family: var(--font-year) !important; letter-spacing: .3em; text-transform: uppercase; }
+.row { display: flex; gap: 8px; }
+.row > input { min-width: 0; flex: 1; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--dim); font: 500 12px var(--font-year); text-transform: uppercase; letter-spacing: .12em; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.note { font-size: 14px; color: var(--dim); min-height: 1.4em; margin: 0; }
+.note.warn { color: var(--wrong); }
+.sample { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.sample .card { width: 150px; transform: rotate(-2deg); }
+.sample .card:nth-child(2) { transform: rotate(1.5deg); }
+.sample .card:nth-child(3) { transform: rotate(-.5deg); }
+
+/* cards */
+.card {
+  background: var(--paper); color: var(--paper-ink); border-radius: 12px; padding: 12px 14px 14px;
+  display: grid; gap: 6px; align-content: start; min-width: 0;
+  box-shadow: 0 2px 0 rgba(0,0,0,.25);
+}
+.card .yr { font: 600 15px var(--font-year); font-variant-numeric: tabular-nums; color: var(--paper-ink); }
+.card .yr.hidden { color: #8a9c9a; letter-spacing: .2em; }
+.card .ev { font: 600 15px/1.3 var(--font-body); }
+.card .cat { font: 500 10px var(--font-year); letter-spacing: .14em; text-transform: uppercase; color: #557371; }
+.card.new { outline: 3px solid var(--right); }
+.card.bad { outline: 3px solid var(--wrong); }
+
+.hand { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 640px) { .hand { grid-template-columns: minmax(0, 1fr); } }
+.hand .card { padding: 18px; }
+.hand .card .ev { font-size: 19px; }
+.hand-side { display: grid; gap: 10px; align-content: start; }
+.instr { color: var(--dim); font-size: 15px; line-height: 1.5; margin: 0; }
+.reveal { border-radius: 12px; padding: 14px 16px; background: var(--deep-2); border-left: 4px solid var(--right); display: grid; gap: 8px; }
+.reveal.bad { border-left-color: var(--wrong); }
+.reveal h3 { margin: 0; font: 800 18px var(--font-display); }
+.reveal p { margin: 0; line-height: 1.55; font-size: 15px; }
+.reveal .fact { color: var(--dim); }
+.reveal .fact b { color: var(--ink); font-weight: 600; }
+
+/* thread */
+.thread-wrap { position: relative; overflow-x: auto; padding-block: 8px 14px; }
+.thread { display: flex; align-items: stretch; gap: 0; min-width: min-content; position: relative; padding-block: 6px; }
+.thread::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 3px; background: var(--thread); opacity: .55; border-radius: 2px; }
+.thread .card { width: 158px; flex: 0 0 auto; position: relative; z-index: 1; }
+.slot {
+  flex: 0 0 auto; width: 40px; align-self: center; height: 64px; margin: 0 4px; position: relative; z-index: 1;
+  border: 2px dashed var(--line); border-radius: 10px; background: transparent; color: var(--dim);
+  font: 800 20px var(--font-display); cursor: pointer;
+}
+.slot:hover, .slot:focus-visible { border-color: var(--thread); color: var(--thread); background: rgba(255,159,28,.1); }
+.slot:disabled { visibility: hidden; }
+@media (max-width: 640px) {
+  .thread { flex-direction: column; min-width: 0; }
+  .thread::before { left: auto; right: auto; inset-inline-start: 22px; top: 0; bottom: 0; width: 3px; height: auto; }
+  .thread .card { width: auto; margin-inline-start: 44px; }
+  .slot { width: auto; height: 38px; margin: 6px 0; margin-inline-start: 44px; align-self: stretch; font-size: 14px; }
+  .slot::after { content: " Place here"; font: 600 13px var(--font-year); }
+}
+.thread-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.thread-head h2 { margin: 0; font: 800 18px var(--font-display); }
+.thread-head span { font: 500 12px var(--font-year); color: var(--dim); }
+
+/* rail */
+.rail { display: grid; gap: 10px; align-content: start; }
+.rail h2 { margin: 0; font: 800 16px var(--font-display); }
+.racer { display: grid; gap: 4px; font-size: 14px; }
+.racer .nm { display: flex; justify-content: space-between; gap: 8px; }
+.racer .nm span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.racer .nm span:last-child { font-family: var(--font-year); color: var(--dim); font-size: 12px; white-space: nowrap; }
+.bar { height: 8px; background: var(--deep); border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+.bar i { display: block; height: 100%; background: var(--thread); border-radius: 4px; transition: width .3s; }
+.racer.me .bar i { background: var(--right); }
+.racer.out { opacity: .5; }
+.codebox { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--deep); border-radius: 10px; padding: 10px 12px; }
+.codebox strong { font: 600 26px var(--font-year); letter-spacing: .2em; color: var(--thread); }
+
+.over { display: grid; gap: 14px; justify-items: start; }
+.over h2 { margin: 0; font: 800 clamp(28px, 6vw, 40px) var(--font-display); letter-spacing: -.02em; }
+.ranks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; max-width: 420px; }
+.ranks li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; font-size: 16px; }
+.ranks li span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranks li b { font-family: var(--font-year); }
+@media (prefers-reduced-motion: no-preference) {
+  .card.new { animation: pop .35s ease-out; }
+  @keyframes pop { from { transform: scale(.9); } to { transform: scale(1); } }
+}
+</style>
+
+<div class="wrap" id="root"></div>
+
+<script>
+// ---------- Cards: [year, event, fact, category, approx?] (negative = BCE) ----------
+const CARDS = [
+  [-3200, 'Earliest known writing appears in Mesopotamia', 'Sumerian cuneiform began as tally marks pressed into clay to track grain and livestock.', 'Culture', 1],
+  [-2560, 'The Great Pyramid of Giza is completed', 'It was the tallest human-made structure on Earth for about 3,800 years.', 'Wonders', 1],
+  [-1754, 'Code of Hammurabi is carved in Babylon', 'One of the oldest written law codes, it includes the idea of "an eye for an eye".', 'History', 1],
+  [-776, 'First recorded Olympic Games at Olympia', 'The earliest event was a single footrace of about 192 metres, called the stadion.', 'Sport', 0],
+  [-508, 'Athens adopts democracy under Cleisthenes', 'Citizens voted directly in an assembly, but women, slaves and foreigners were excluded.', 'History', 1],
+  [-221, 'Qin Shi Huang unifies China', 'He standardised writing, coins and even axle widths, and was buried with the Terracotta Army.', 'History', 0],
+  [-44, 'Julius Caesar is assassinated', 'He was stabbed on the Ides of March, 15 March, by a group of Roman senators.', 'History', 0],
+  [79, 'Mount Vesuvius buries Pompeii', 'Ash preserved the city so well that loaves of bread were found still in an oven.', 'Science', 0],
+  [105, 'Cai Lun improves papermaking in China', 'He used tree bark, hemp and old fishing nets to make cheap, light writing paper.', 'Invention', 0],
+  [476, 'The Western Roman Empire falls', 'Its last emperor, Romulus Augustulus, was a teenager when he was deposed.', 'History', 0],
+  [1066, 'Battle of Hastings', 'The Bayeux Tapestry telling this story is about 70 metres long.', 'History', 0],
+  [1088, 'University of Bologna is founded', 'It is the oldest university in continuous operation, and the word "university" comes from its student guild.', 'Culture', 0],
+  [1206, 'Genghis Khan becomes ruler of the Mongols', 'His empire grew into the largest contiguous land empire in history.', 'History', 0],
+  [1215, 'Magna Carta is sealed', 'It established that even the king had to follow the law.', 'History', 0],
+  [1347, 'The Black Death reaches Europe', 'It killed roughly a third to half of Europe’s population within a few years.', 'Science', 0],
+  [1440, 'Gutenberg develops his printing press', 'Movable metal type made books far cheaper and helped spread literacy across Europe.', 'Invention', 1],
+  [1453, 'Constantinople falls to the Ottomans', 'The city, now Istanbul, had been the capital of the Eastern Roman Empire for over 1,000 years.', 'History', 0],
+  [1492, 'Columbus reaches the Americas', 'He believed until his death that he had reached islands off Asia.', 'Exploration', 0],
+  [1503, 'Leonardo da Vinci begins the Mona Lisa', 'It has no visible eyebrows, and Leonardo kept working on it for years.', 'Art', 1],
+  [1517, 'Martin Luther publishes his 95 Theses', 'The printing press helped his ideas spread across Germany within weeks.', 'History', 0],
+  [1522, 'First voyage around the world is completed', 'Magellan died on the way. Only 18 of about 270 crew made it back to Spain.', 'Exploration', 0],
+  [1543, 'Copernicus publishes his Sun-centred model', 'He put the Sun, not the Earth, at the centre of the planets’ orbits.', 'Science', 0],
+  [1610, 'Galileo discovers four moons of Jupiter', 'It was the first proof that not everything orbits the Earth.', 'Space', 0],
+  [1665, 'Robert Hooke names the "cell"', 'Looking at cork through a microscope, he thought the tiny boxes looked like monks’ rooms.', 'Science', 0],
+  [1666, 'Great Fire of London', 'It destroyed over 13,000 houses, but very few deaths were recorded.', 'History', 0],
+  [1687, 'Newton publishes the Principia', 'It set out his laws of motion and universal gravitation.', 'Science', 0],
+  [1776, 'US Declaration of Independence', 'Most delegates signed it on 2 August, not on 4 July.', 'History', 0],
+  [1789, 'French Revolution: the Bastille is stormed', 'The famous prison held only seven prisoners that day.', 'History', 0],
+  [1796, 'Edward Jenner tests the first vaccine', 'He used cowpox to protect against smallpox. "Vacca" is Latin for cow.', 'Science', 0],
+  [1800, 'Alessandro Volta invents the battery', 'The unit of electrical potential, the volt, is named after him.', 'Invention', 0],
+  [1804, 'First steam locomotive runs on rails', 'Richard Trevithick’s engine pulled 10 tonnes of iron in Wales.', 'Invention', 0],
+  [1815, 'Battle of Waterloo', 'Napoleon’s final defeat ended over two decades of war in Europe.', 'History', 0],
+  [1826, 'Oldest surviving camera photograph is taken', 'Niépce’s view from a window needed an exposure of hours, possibly days.', 'Invention', 1],
+  [1846, 'Planet Neptune is discovered', 'Its position was predicted with mathematics before anyone saw it through a telescope.', 'Space', 0],
+  [1859, 'Darwin publishes On the Origin of Species', 'The first printing of about 1,250 copies sold out to booksellers on the first day.', 'Science', 0],
+  [1863, 'London Underground opens', 'It was the world’s first underground railway, and its first trains ran on steam.', 'Invention', 0],
+  [1869, 'Mendeleev publishes his periodic table', 'He left gaps for elements nobody had discovered yet, and predicted their properties.', 'Science', 0],
+  [1876, 'Bell patents the telephone', 'His first words on it were reportedly "Mr. Watson, come here, I want to see you."', 'Invention', 0],
+  [1879, 'Edison demonstrates a long-lasting light bulb', 'His team tested thousands of materials before settling on carbonised bamboo filaments.', 'Invention', 0],
+  [1886, 'Statue of Liberty is dedicated', 'It was a gift from France. Its copper skin turned green as it weathered.', 'Wonders', 0],
+  [1889, 'Eiffel Tower opens in Paris', 'It was built for a world fair and was meant to be taken down after 20 years.', 'Wonders', 0],
+  [1895, 'Wilhelm Röntgen discovers X-rays', 'One of the first X-ray images showed the bones of his wife’s hand, with her ring.', 'Science', 0],
+  [1896, 'First modern Olympic Games in Athens', 'About 240 athletes took part, all of them men.', 'Sport', 0],
+  [1903, 'Wright brothers make the first powered flight', 'The first flight lasted 12 seconds and covered 37 metres, less than a jumbo jet’s wingspan.', 'Invention', 0],
+  [1905, 'Einstein publishes special relativity', 'In the same year he also explained the photoelectric effect, which won him a Nobel Prize.', 'Science', 0],
+  [1911, 'Amundsen’s team reaches the South Pole', 'They beat Scott’s expedition by about five weeks, using sled dogs.', 'Exploration', 0],
+  [1912, 'The Titanic sinks', 'There were lifeboats for only about half of the people on board.', 'History', 0],
+  [1914, 'World War I begins', 'Many people believed it would be "over by Christmas". It lasted more than four years.', 'History', 0],
+  [1922, 'Tutankhamun’s tomb is discovered', 'Howard Carter found it almost intact after 3,000 years.', 'Culture', 0],
+  [1928, 'Alexander Fleming discovers penicillin', 'He noticed that mould had killed bacteria on a dish he had left out over a holiday.', 'Science', 0],
+  [1930, 'First FIFA World Cup is held in Uruguay', 'Only 13 teams took part, and Uruguay won it at home.', 'Sport', 0],
+  [1937, 'Golden Gate Bridge opens', 'Its colour is called "International Orange" and was chosen so it would show up in fog.', 'Wonders', 0],
+  [1939, 'World War II begins', 'It started when Germany invaded Poland on 1 September.', 'History', 0],
+  [1945, 'The United Nations is founded', '51 countries signed its charter. Today there are 193 member states.', 'History', 0],
+  [1946, 'ENIAC computer is unveiled', 'It weighed about 27 tonnes and filled a large room.', 'Technology', 0],
+  [1947, 'The transistor is invented', 'A modern phone chip holds billions of transistors.', 'Technology', 0],
+  [1953, 'Hillary and Tenzing summit Mount Everest', 'They spent only about 15 minutes at the top.', 'Exploration', 0],
+  [1953, 'Structure of DNA is described as a double helix', 'Rosalind Franklin’s X-ray image, "Photo 51", was key to the discovery.', 'Science', 0],
+  [1957, 'Sputnik 1 becomes the first satellite', 'It was about the size of a beach ball and sent out a simple beep.', 'Space', 0],
+  [1961, 'Yuri Gagarin becomes the first human in space', 'His flight lasted 108 minutes and went once around the Earth.', 'Space', 0],
+  [1967, 'First human heart transplant', 'Surgeon Christiaan Barnard did it in Cape Town, South Africa.', 'Science', 0],
+  [1969, 'Apollo 11 lands on the Moon', 'The astronauts’ footprints are still there, because the Moon has no wind.', 'Space', 0],
+  [1969, 'First message is sent over ARPANET', 'It was meant to be "LOGIN", but the system crashed after "LO".', 'Technology', 0],
+  [1971, 'First email is sent between computers', 'Ray Tomlinson chose the @ sign to separate the user from the machine.', 'Technology', 0],
+  [1973, 'First handheld mobile phone call', 'The prototype weighed about 1.1 kg and the battery lasted around 30 minutes of talk.', 'Technology', 0],
+  [1977, 'Voyager 1 is launched', 'It is the farthest human-made object from Earth, and it carries a golden record of sounds.', 'Space', 0],
+  [1978, 'First baby born through IVF', 'Louise Brown was born in England. Millions of people have been born through IVF since.', 'Science', 0],
+  [1981, 'IBM releases its Personal Computer', 'Its success made "PC" the everyday word for a desktop computer.', 'Technology', 0],
+  [1986, 'Chernobyl nuclear disaster', 'The area around the plant is now a wildlife refuge with wolves and wild horses.', 'Science', 0],
+  [1989, 'The Berlin Wall falls', 'It had divided the city for 28 years.', 'History', 0],
+  [1990, 'Hubble Space Telescope is launched', 'Its mirror was slightly misshapen at first, and astronauts fixed it in 1993.', 'Space', 0],
+  [1991, 'First website goes online', 'Tim Berners-Lee’s page at CERN explained what the World Wide Web was.', 'Technology', 0],
+  [1994, 'Nelson Mandela is elected president of South Africa', 'He became president after spending 27 years in prison.', 'History', 0],
+  [1996, 'Dolly the sheep is born, the first cloned mammal', 'She was cloned from a single adult cell.', 'Science', 0],
+  [1997, 'Deep Blue beats chess champion Garry Kasparov', 'It was the first time a computer beat a reigning world champion in a full match.', 'Technology', 0],
+  [1998, 'Google is founded', 'The name comes from "googol", the number 1 followed by 100 zeros.', 'Technology', 0],
+  [2003, 'Human Genome Project is completed', 'It mapped about 20,000 human genes, and took 13 years.', 'Science', 0],
+  [2004, 'Facebook launches', 'It started for Harvard students only.', 'Technology', 0],
+  [2005, 'YouTube is founded', 'Its first video, "Me at the zoo", is 19 seconds long.', 'Technology', 0],
+  [2007, 'The first iPhone is released', 'At launch it had no app store. That arrived a year later.', 'Technology', 0],
+  [2008, 'The Bitcoin white paper is published', 'Its author, "Satoshi Nakamoto", has never been identified.', 'Technology', 0],
+  [2012, 'Higgs boson discovery is announced', 'It was found at CERN’s Large Hadron Collider, a 27 km ring under the French–Swiss border.', 'Science', 0],
+  [2012, 'Curiosity rover lands on Mars', 'A rocket "sky crane" lowered it to the ground on cables.', 'Space', 0],
+  [2015, 'Gravitational waves are detected for the first time', 'They came from two black holes that merged about 1.3 billion years ago.', 'Space', 0],
+  [2019, 'First image of a black hole is released', 'Eight radio telescopes around the world worked together as one Earth-sized telescope.', 'Space', 0],
+  [2021, 'James Webb Space Telescope is launched', 'It launched on 25 December and orbits about 1.5 million km from Earth.', 'Space', 0],
+];
+</script>
+
+<script>
+// Arabic text for each card, same order as CARDS: [event, fact]
+const CARDS_AR = [
+  ['ظهور أقدم كتابة معروفة في بلاد الرافدين', 'بدأت الكتابة المسمارية السومرية بعلامات عدّ تُضغط على الطين لإحصاء الحبوب والماشية.'],
+  ['اكتمال بناء الهرم الأكبر في الجيزة', 'ظل أطول بناء صنعه الإنسان على الأرض نحو 3,800 سنة.'],
+  ['نقش شريعة حمورابي في بابل', 'من أقدم القوانين المكتوبة، وفيها مبدأ «العين بالعين».'],
+  ['أول ألعاب أولمبية مسجّلة في أولمبيا', 'كانت أول مسابقة سباق جري واحدًا لمسافة نحو 192 مترًا يسمى «ستاديون».'],
+  ['أثينا تتبنّى الديمقراطية في عهد كليسثينيس', 'كان المواطنون يصوّتون مباشرة في مجلس عام، لكن النساء والعبيد والأجانب كانوا مستبعدين.'],
+  ['تشين شي هوانغ يوحّد الصين', 'وحّد الكتابة والعملات وحتى عرض محاور العربات، ودُفن مع جيش الطين الشهير.'],
+  ['اغتيال يوليوس قيصر', 'طعنته مجموعة من أعضاء مجلس الشيوخ الروماني في منتصف مارس، يوم 15 مارس.'],
+  ['بركان فيزوف يدفن مدينة بومبي', 'حفظ الرماد المدينة لدرجة أنهم وجدوا أرغفة خبز ما زالت في الفرن.'],
+  ['تساي لون يطوّر صناعة الورق في الصين', 'استخدم لحاء الأشجار والقنب وشباك الصيد القديمة لصنع ورق رخيص وخفيف للكتابة.'],
+  ['سقوط الإمبراطورية الرومانية الغربية', 'كان آخر أباطرتها، رومولوس أوغستولوس، مراهقًا عندما خُلع.'],
+  ['معركة هاستينغز', 'يبلغ طول نسيج بايو الذي يروي قصتها نحو 70 مترًا.'],
+  ['تأسيس جامعة بولونيا', 'أقدم جامعة ما زالت تعمل دون انقطاع، وكلمة «جامعة» بالإنجليزية جاءت من نقابة طلابها.'],
+  ['جنكيز خان يصبح حاكمًا للمغول', 'أصبحت إمبراطوريته أكبر إمبراطورية برية متصلة في التاريخ.'],
+  ['إصدار وثيقة الماغنا كارتا', 'أقرّت أن الملك نفسه يجب أن يخضع للقانون.'],
+  ['الموت الأسود يصل إلى أوروبا', 'قتل ما بين ثلث ونصف سكان أوروبا تقريبًا خلال بضع سنوات.'],
+  ['غوتنبرغ يطوّر مطبعته', 'جعلت الحروف المعدنية المتحركة الكتب أرخص بكثير وساعدت على نشر القراءة في أوروبا.'],
+  ['فتح القسطنطينية على يد العثمانيين', 'كانت المدينة، إسطنبول اليوم، عاصمة الإمبراطورية الرومانية الشرقية لأكثر من 1,000 عام.'],
+  ['كولومبوس يصل إلى الأمريكتين', 'ظل يعتقد حتى وفاته أنه وصل إلى جزر قرب آسيا.'],
+  ['ليوناردو دافنشي يبدأ رسم الموناليزا', 'ليس لها حاجبان ظاهران، وظل ليوناردو يعمل عليها سنوات.'],
+  ['مارتن لوثر ينشر أطروحاته الخمس والتسعين', 'ساعدت المطبعة على انتشار أفكاره في أنحاء ألمانيا خلال أسابيع.'],
+  ['اكتمال أول رحلة حول العالم', 'مات ماجلان أثناء الرحلة، ولم يعد إلى إسبانيا سوى 18 من نحو 270 بحّارًا.'],
+  ['كوبرنيكوس ينشر نموذج مركزية الشمس', 'وضع الشمس، لا الأرض، في مركز مدارات الكواكب.'],
+  ['غاليليو يكتشف أربعة أقمار للمشتري', 'كان ذلك أول دليل على أن ليس كل شيء يدور حول الأرض.'],
+  ['روبرت هوك يطلق اسم «الخلية»', 'عندما نظر إلى الفلين بالمجهر، رأى أن الصناديق الصغيرة تشبه غرف الرهبان.'],
+  ['حريق لندن الكبير', 'دمّر أكثر من 13,000 منزل، لكن عدد الوفيات المسجّلة كان قليلًا جدًا.'],
+  ['نيوتن ينشر كتاب «المبادئ»', 'عرض فيه قوانين الحركة وقانون الجاذبية العام.'],
+  ['إعلان استقلال الولايات المتحدة', 'وقّع معظم المندوبين عليه في 2 أغسطس، لا في 4 يوليو.'],
+  ['الثورة الفرنسية: اقتحام سجن الباستيل', 'لم يكن في السجن الشهير ذلك اليوم سوى سبعة سجناء.'],
+  ['إدوارد جينر يجرّب أول لقاح', 'استخدم جدري البقر للوقاية من الجدري. وكلمة «فاكا» تعني البقرة باللاتينية.'],
+  ['أليساندرو فولتا يخترع البطارية', 'سُمّيت وحدة الجهد الكهربائي «فولت» باسمه.'],
+  ['أول قاطرة بخارية تسير على قضبان', 'جرّت قاطرة ريتشارد تريفيثيك 10 أطنان من الحديد في ويلز.'],
+  ['معركة واترلو', 'أنهت هزيمة نابليون الأخيرة أكثر من عقدين من الحروب في أوروبا.'],
+  ['التقاط أقدم صورة فوتوغرافية باقية', 'احتاجت صورة نييبس من النافذة إلى تعريض استمر ساعات، وربما أيامًا.'],
+  ['اكتشاف كوكب نبتون', 'حُدّد موقعه بالرياضيات قبل أن يراه أحد بالتلسكوب.'],
+  ['داروين ينشر كتاب «أصل الأنواع»', 'نفدت الطبعة الأولى، نحو 1,250 نسخة، عند الباعة في اليوم الأول.'],
+  ['افتتاح مترو أنفاق لندن', 'كان أول قطار أنفاق في العالم، وكانت قطاراته الأولى تعمل بالبخار.'],
+  ['مندلييف ينشر جدوله الدوري', 'ترك فراغات لعناصر لم تكن مكتشفة بعد، وتنبّأ بخصائصها.'],
+  ['بيل يحصل على براءة اختراع الهاتف', 'يُروى أن أول ما قاله عبره: «سيد واتسون، تعال إلى هنا، أريد أن أراك».'],
+  ['إديسون يعرض مصباحًا كهربائيًا يدوم طويلًا', 'جرّب فريقه آلاف المواد قبل أن يستقر على فتائل من الخيزران المتفحّم.'],
+  ['تدشين تمثال الحرية', 'كان هدية من فرنسا، وتحوّل غلافه النحاسي إلى اللون الأخضر مع الزمن.'],
+  ['افتتاح برج إيفل في باريس', 'بُني لمعرض عالمي، وكان من المقرر إزالته بعد 20 عامًا.'],
+  ['فيلهلم رونتغن يكتشف الأشعة السينية', 'أظهرت إحدى أولى صور الأشعة عظام يد زوجته وخاتمها.'],
+  ['أول ألعاب أولمبية حديثة في أثينا', 'شارك فيها نحو 240 رياضيًا، وكانوا جميعًا من الرجال.'],
+  ['الأخوان رايت ينفّذان أول طيران بمحرّك', 'استمرت الرحلة الأولى 12 ثانية وقطعت 37 مترًا، أي أقل من عرض جناحي طائرة جامبو.'],
+  ['أينشتاين ينشر النظرية النسبية الخاصة', 'في العام نفسه فسّر أيضًا التأثير الكهروضوئي، الذي نال عنه جائزة نوبل.'],
+  ['فريق أموندسن يصل إلى القطب الجنوبي', 'سبقوا بعثة سكوت بنحو خمسة أسابيع مستخدمين كلاب الزلاجات.'],
+  ['غرق سفينة تايتانيك', 'لم تكن قوارب النجاة تكفي إلا لنحو نصف من كانوا على متنها.'],
+  ['بداية الحرب العالمية الأولى', 'ظن كثيرون أنها ستنتهي «قبل عيد الميلاد»، لكنها استمرت أكثر من أربع سنوات.'],
+  ['اكتشاف مقبرة توت عنخ آمون', 'وجدها هوارد كارتر شبه سليمة بعد 3,000 عام.'],
+  ['ألكسندر فليمنغ يكتشف البنسلين', 'لاحظ أن عفنًا قتل البكتيريا في طبق تركه مكشوفًا أثناء إجازة.'],
+  ['أول كأس عالم لكرة القدم في الأوروغواي', 'شارك فيها 13 منتخبًا فقط، وفازت بها الأوروغواي على أرضها.'],
+  ['افتتاح جسر البوابة الذهبية', 'لونه يُسمّى «البرتقالي الدولي»، واختير ليظهر بوضوح في الضباب.'],
+  ['بداية الحرب العالمية الثانية', 'بدأت عندما غزت ألمانيا بولندا في 1 سبتمبر.'],
+  ['تأسيس الأمم المتحدة', 'وقّعت 51 دولة على ميثاقها، واليوم يبلغ عدد أعضائها 193 دولة.'],
+  ['الكشف عن حاسوب إنياك', 'كان يزن نحو 27 طنًا ويملأ غرفة كبيرة.'],
+  ['اختراع الترانزستور', 'تحتوي شريحة الهاتف الحديث على مليارات الترانزستورات.'],
+  ['هيلاري وتينزينغ يصلان إلى قمة إيفرست', 'قضيا نحو 15 دقيقة فقط على القمة.'],
+  ['وصف بنية الحمض النووي كحلزون مزدوج', 'كانت صورة روزاليند فرانكلين بالأشعة السينية، «الصورة 51»، أساسية في هذا الاكتشاف.'],
+  ['سبوتنيك 1 يصبح أول قمر صناعي', 'كان بحجم كرة شاطئ تقريبًا، ويرسل صفيرًا بسيطًا.'],
+  ['يوري غاغارين أول إنسان في الفضاء', 'استمرت رحلته 108 دقائق ودار حول الأرض مرة واحدة.'],
+  ['أول عملية زراعة قلب بشري', 'أجراها الجرّاح كريستيان بارنارد في كيب تاون بجنوب أفريقيا.'],
+  ['أبولو 11 تهبط على القمر', 'ما زالت آثار أقدام رواد الفضاء هناك، لأن القمر بلا رياح.'],
+  ['إرسال أول رسالة عبر شبكة أربانت', 'كان المفترض أن تكون «LOGIN»، لكن النظام تعطّل بعد «LO».'],
+  ['إرسال أول بريد إلكتروني بين حاسوبين', 'اختار راي توملينسون رمز @ ليفصل بين اسم المستخدم واسم الجهاز.'],
+  ['أول مكالمة بهاتف محمول باليد', 'كان النموذج يزن نحو 1.1 كغ، وتكفي بطاريته لنحو 30 دقيقة من الحديث.'],
+  ['إطلاق المسبار فوييجر 1', 'أبعد جسم صنعه الإنسان عن الأرض، ويحمل أسطوانة ذهبية عليها أصوات من كوكبنا.'],
+  ['ولادة أول طفلة بالتلقيح الصناعي', 'وُلدت لويز براون في إنجلترا، ومنذ ذلك الحين وُلد ملايين الأطفال بهذه الطريقة.'],
+  ['آي بي إم تطرح حاسوبها الشخصي', 'جعل نجاحه كلمة «PC» الاسم الشائع للحاسوب المكتبي.'],
+  ['كارثة تشيرنوبل النووية', 'أصبحت المنطقة حول المحطة اليوم محمية للحياة البرية فيها ذئاب وخيول برية.'],
+  ['سقوط جدار برلين', 'كان يقسم المدينة منذ 28 عامًا.'],
+  ['إطلاق تلسكوب هابل الفضائي', 'كانت مرآته مشوّهة قليلًا في البداية، وأصلحها رواد الفضاء عام 1993.'],
+  ['أول موقع إلكتروني على الإنترنت', 'شرحت صفحة تيم بيرنرز-لي في سيرن ما هي الشبكة العنكبوتية العالمية.'],
+  ['انتخاب نيلسون مانديلا رئيسًا لجنوب أفريقيا', 'أصبح رئيسًا بعد أن قضى 27 عامًا في السجن.'],
+  ['ولادة النعجة دوللي، أول حيوان ثديي مستنسخ', 'استُنسخت من خلية واحدة من حيوان بالغ.'],
+  ['ديب بلو يهزم بطل الشطرنج غاري كاسباروف', 'كانت أول مرة يهزم فيها حاسوب بطل عالم في مباراة كاملة.'],
+  ['تأسيس شركة غوغل', 'جاء الاسم من «غوغول»، وهو الرقم 1 متبوعًا بمئة صفر.'],
+  ['اكتمال مشروع الجينوم البشري', 'رسم خريطة نحو 20,000 جين بشري، واستغرق 13 عامًا.'],
+  ['إطلاق فيسبوك', 'بدأ مخصصًا لطلاب جامعة هارفارد فقط.'],
+  ['تأسيس يوتيوب', 'مدة أول فيديو عليه، «أنا في حديقة الحيوان»، 19 ثانية.'],
+  ['طرح أول آيفون', 'لم يكن فيه متجر تطبيقات عند إطلاقه، فقد جاء بعد عام.'],
+  ['نشر الورقة البيضاء لعملة بيتكوين', 'لم يُعرف حتى اليوم من هو كاتبها «ساتوشي ناكاموتو».'],
+  ['الإعلان عن اكتشاف بوزون هيغز', 'اكتُشف في مصادم الهادرونات الكبير التابع لسيرن، وهو حلقة طولها 27 كم تحت الحدود الفرنسية السويسرية.'],
+  ['المسبار كيوريوسيتي يهبط على المريخ', 'أنزلته «رافعة سماوية» صاروخية إلى الأرض بالكابلات.'],
+  ['رصد موجات الجاذبية لأول مرة', 'جاءت من اندماج ثقبين أسودين قبل نحو 1.3 مليار سنة.'],
+  ['نشر أول صورة لثقب أسود', 'عملت ثمانية تلسكوبات راديوية حول العالم معًا كأنها تلسكوب واحد بحجم الأرض.'],
+  ['إطلاق تلسكوب جيمس ويب الفضائي', 'انطلق في 25 ديسمبر، ويدور على بعد نحو 1.5 مليون كم من الأرض.'],
+];
+const CAT_AR = { Culture: 'ثقافة', Wonders: 'عجائب', History: 'تاريخ', Sport: 'رياضة', Science: 'علوم', Invention: 'اختراعات', Exploration: 'استكشاف', Art: 'فن', Space: 'فضاء', Technology: 'تقنية' };
+</script>
+
+<script>
+(() => {
+  const TARGET = 10;           // cards to place to win a race
+  const HEARTS = 3;
+  const root = document.getElementById('root');
+  const clean = s => String(s || '').replace(/[\u0000-\u001f\u007f-\u009f­​-‏‪-‮⁠-⁯﻿]/g, '').trim().slice(0, 14);
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v);
+    }
+    for (const k of kids) if (k != null) n.append(k);
+    return n;
+  };
+
+  // ---------- storage + language ----------
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('timeThread') || '{}') || {}; } catch (e) {}
+  const save = () => { try { localStorage.setItem('timeThread', JSON.stringify(saved)); } catch (e) {} };
+  let lang = location.hash === '#ar' ? 'ar' : (saved.lang || ((navigator.language || '').toLowerCase().startsWith('ar') ? 'ar' : 'en'));
+  const T = (en, ar) => lang === 'ar' ? ar : en;
+  function applyLang() { document.documentElement.lang = lang; document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'; }
+  function setLang(l) { lang = l; saved.lang = l; save(); applyLang(); render(); }
+  applyLang();
+  const fmtYear = (y, approx) => lang === 'ar'
+    ? (approx ? 'نحو ' : '') + (y < 0 ? (-y) + ' ق.م' : String(y))
+    : (approx ? 'c. ' : '') + (y < 0 ? (-y) + ' BCE' : String(y));
+
+  // ---------- seeded shuffle ----------
+  function hash(str) { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function shuffled(seedStr) {
+    const r = rng(hash(seedStr)), a = CARDS.map((c, i) => i);
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+  // cards keep only id + year; text is looked up in the current language when drawn
+  const card = i => ({ id: i, y: CARDS[i][0], approx: !!CARDS[i][4] });
+  const ev = c => lang === 'ar' && CARDS_AR[c.id] ? CARDS_AR[c.id][0] : CARDS[c.id][1];
+  const fact = c => lang === 'ar' && CARDS_AR[c.id] ? CARDS_AR[c.id][1] : CARDS[c.id][2];
+  const cat = c => lang === 'ar' ? (CAT_AR[CARDS[c.id][3]] || CARDS[c.id][3]) : CARDS[c.id][3];
+
+  // ---------- state ----------
+  const G = {
+    screen: 'menu', mode: 'solo', name: clean(saved.name) || '', note: '', noteWarn: false,
+    deck: [], di: 0, line: [], hand: null, hearts: HEARTS, streak: 0, bestStreak: 0, placed: 0,
+    reveal: null, done: false, rd: 0, code: '', hints: 2, hint: null,
+  };
+
+  // ---------- room ----------
+  let lobby = null, room = null, peers = [], since = 0, connected = false;
+  const roomReady = (window.claude && typeof window.claude.use === 'function') ? window.claude.use('room').catch(() => null) : Promise.resolve(null);
+  roomReady.then(r => { lobby = r; if (G.screen === 'menu') render(); });
+
+  function racers() {
+    const mine = { peer: 'me', isMe: true, n: G.name, since, rd: G.rd, ln: G.placed, h: G.hearts, st: raceStatus(), race: G.hostRace || 0 };
+    if (!room) return [mine];
+    const out = [mine];
+    for (const p of peers) {
+      if (p.sameTab || p.kind !== 'viewer') continue;
+      const pr = p.presence || {};
+      if (typeof pr.n !== 'string' || typeof pr.since !== 'number') continue;
+      out.push({ peer: p.peer, isMe: false, n: clean(pr.n) || T('Someone', 'لاعب'), since: pr.since, rd: pr.rd | 0, ln: Math.max(0, Math.min(TARGET, pr.ln | 0)), h: Math.max(0, Math.min(HEARTS, pr.h | 0)), st: ['lobby', 'play', 'out', 'won'].includes(pr.st) ? pr.st : 'lobby', race: pr.race | 0, guest: p.guest });
+    }
+    return out;
+  }
+  function host(list) { return list.slice().sort((a, b) => (a.since - b.since) || (a.peer < b.peer ? -1 : 1))[0]; }
+  function raceStatus() { if (G.screen !== 'game') return 'lobby'; if (G.placed >= TARGET) return 'won'; if (G.hearts <= 0) return 'out'; return 'play'; }
+  function push() {
+    if (!room) return;
+    room.presence({ n: G.name, since, rd: G.rd, ln: G.placed, h: G.hearts, st: raceStatus(), race: G.hostRace || 0 }).catch(() => {});
+  }
+
+  async function joinRoom(code) {
+    const ni = document.getElementById('nameIn');
+    G.name = clean(ni && ni.value) || G.name || T('Player ', 'لاعب ') + Math.floor(Math.random() * 90 + 10);
+    saved.name = G.name; save();
+    const r = await roomReady;
+    if (!r) { G.note = T('Live races aren’t available in this view. Try solo instead.', 'السباقات المباشرة غير متاحة هنا. جرّب اللعب الفردي.'); G.noteWarn = true; return render(); }
+    G.note = T('Joining room ', 'جارٍ الانضمام إلى الغرفة ') + code.toUpperCase() + '…'; G.noteWarn = false; render();
+    try { room = await r.join('tt-' + code); }
+    catch (e) { room = null; G.note = T('Couldn’t join that room. Try again in a moment.', 'تعذّر الانضمام إلى الغرفة. حاول مجددًا بعد لحظة.'); G.noteWarn = true; return render(); }
+    since = Date.now(); G.code = code; G.mode = 'race'; G.screen = 'lobby'; G.rd = 0; G.hostRace = 0;
+    room.onPeers(ch => { peers = ch.peers; onRoomChange(); }, () => {});
+    room.onConnection(c => { connected = c; render(); }, () => { connected = false; });
+    push(); render();
+  }
+  function leaveRoom() {
+    if (room) { try { room.leave(); } catch (e) {} }
+    room = null; peers = []; G.screen = 'menu'; G.mode = 'solo'; G.note = ''; render();
+  }
+
+  // Host starts race N by setting `race: N` in presence; everyone follows the host's number.
+  function onRoomChange() {
+    const list = racers(); const h = host(list);
+    if (h && !h.isMe && h.race > G.rd) return startGame('race', h.race);
+    if (G.mode === 'race' && G.screen === 'game' && !G.done && raceResult()) { G.done = true; if (!G.reveal) G.hand = null; push(); }
+    render();
+  }
+  function hostStart() { G.hostRace = (G.hostRace || G.rd) + 1; startGame('race', G.hostRace); }
+
+  // ---------- game ----------
+  function startGame(mode, rd) {
+    G.mode = mode; G.screen = 'game'; G.rd = rd || 0;
+    const seed = mode === 'race' ? G.code + ':' + rd : String(Math.random());
+    G.deck = shuffled(seed); G.di = 0;
+    G.line = [card(G.deck[G.di++])];
+    G.hand = card(G.deck[G.di++]);
+    G.hearts = HEARTS; G.streak = 0; G.bestStreak = 0; G.placed = 0; G.reveal = null; G.done = false; G.hints = 2; G.hint = null;
+    push(); render();
+  }
+  function place(slot) {
+    if (G.reveal || G.done) return;
+    const c = G.hand, L = G.line;
+    const ok = (slot === 0 || L[slot - 1].y <= c.y) && (slot === L.length || c.y <= L[slot].y);
+    let where = null;
+    if (ok) {
+      L.splice(slot, 0, c); G.placed++; G.streak++; G.bestStreak = Math.max(G.bestStreak, G.streak);
+    } else {
+      G.hearts--; G.streak = 0;
+      let k = 0; while (k < L.length && L[k].y <= c.y) k++;
+      where = { before: L[k - 1] || null, after: L[k] || null };
+    }
+    G.reveal = { ok, c, where };
+    G.lastNew = ok ? c.id : null;
+    if (G.mode === 'race' && G.placed >= TARGET) G.done = true;
+    if (G.hearts <= 0) G.done = true;
+    if (G.di >= G.deck.length) G.done = true;
+    if (G.done && G.mode === 'solo') { if (G.placed > (saved.best || 0)) { saved.best = G.placed; G.newBest = true; save(); } else G.newBest = false; }
+    tone(ok);
+    push(); render();
+    const next = document.getElementById('nextBtn'); if (next) next.focus();
+  }
+  function whereText(w) {
+    const f = x => fmtYear(x.y, x.approx);
+    if (w.before && w.after) return T(`between ${f(w.before)} and ${f(w.after)}`, `بين ${f(w.before)} و${f(w.after)}`);
+    if (w.before) return T(`after ${f(w.before)}`, `بعد ${f(w.before)}`);
+    return T(`before ${f(w.after)}`, `قبل ${f(w.after)}`);
+  }
+  function next() {
+    if (G.done) { G.reveal = null; G.screen = G.mode === 'race' ? 'game' : 'over'; G.hand = null; render(); return; }
+    G.hand = card(G.deck[G.di++]); G.reveal = null; G.hint = null; render();
+  }
+  function hint() {
+    if (G.hints <= 0 || !G.hand || G.reveal) return;
+    G.hints--; G.hint = G.hand.y; render();
+  }
+  function hintText(y) {
+    if (y < 0) return T('This happened before the year 1 (BCE).', 'وقع هذا الحدث قبل الميلاد.');
+    const c = Math.floor(y / 100) + 1;
+    const suf = ['th', 'st', 'nd', 'rd'][(c % 100 > 10 && c % 100 < 14) ? 0 : (c % 10 < 4 ? c % 10 : 0)];
+    return T(`This happened in the ${c}${suf} century (${c === 1 ? 'years 1 to 100' : (c - 1) * 100 + 's'}).`, `وقع هذا الحدث في القرن ${c} الميلادي (${c === 1 ? 'من سنة 1 إلى 100' : 'سنوات ' + (c - 1) * 100 + ' وما بعدها'}).`);
+  }
+
+  // ---------- sound ----------
+  let AC = null;
+  addEventListener('pointerdown', () => { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (AC && AC.state === 'suspended') AC.resume().catch(() => {}); }, { capture: true });
+  function tone(ok) {
+    if (!AC) return; const t = AC.currentTime;
+    const notes = ok ? [523, 784] : [220, 165];
+    notes.forEach((f, i) => { const o = AC.createOscillator(), g = AC.createGain(); o.type = ok ? 'triangle' : 'sawtooth'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t + i * .1); g.gain.exponentialRampToValueAtTime(ok ? .07 : .04, t + i * .1 + .02); g.gain.exponentialRampToValueAtTime(0.0001, t + i * .1 + .25); o.connect(g); g.connect(AC.destination); o.start(t + i * .1); o.stop(t + i * .1 + .3); });
+  }
+
+  // ---------- render ----------
+  function cardEl(c, showYear, extra = '') {
+    return el('div', { class: 'card ' + extra },
+      el('span', { class: 'cat', text: cat(c) }),
+      el('span', { class: 'ev', text: ev(c) }),
+      el('span', { class: 'yr' + (showYear ? '' : ' hidden'), text: showYear ? fmtYear(c.y, c.approx) : '????' }));
+  }
+  function hearts() { return '♥'.repeat(Math.max(0, G.hearts)) + '♡'.repeat(Math.max(0, HEARTS - G.hearts)); }
+  const langSwitch = () => el('div', { class: 'langsw', role: 'group', 'aria-label': 'Language / اللغة' },
+    el('button', { type: 'button', lang: 'en', 'aria-pressed': String(lang === 'en'), onclick: () => setLang('en') }, 'English'),
+    el('button', { type: 'button', lang: 'ar', 'aria-pressed': String(lang === 'ar'), onclick: () => setLang('ar') }, 'العربية'));
+
+  function renderMenu() {
+    const hashCode = (location.hash || '').replace('#', '').toLowerCase();
+    const sample = el('div', { class: 'sample', 'aria-hidden': 'true' },
+      cardEl(card(41), true), cardEl(card(43), false), cardEl(card(59), true));
+    const left = el('div', {},
+      lang === 'ar' ? el('h1', {}, 'خيط ', el('span', { text: 'الزمن' })) : el('h1', {}, 'Time ', el('span', { text: 'Thread' })),
+      el('p', { text: T('You get an event with its year hidden. Put it in the right spot on your timeline, between events that came before and after it. Get it right and the card stays. Get it wrong and you lose a heart. Every card shows a short fact.', 'تحصل على حدث تاريخي سنته مخفية. ضعه في مكانه الصحيح على خطك الزمني، بين الأحداث التي سبقته والتي جاءت بعده. إذا أصبت تبقى البطاقة، وإذا أخطأت تخسر قلبًا. وكل بطاقة تكشف لك معلومة قصيرة.') }),
+      el('p', { text: T(`${CARDS.length} events from 3200 BCE to today, covering science, space, inventions, history, sport and culture.`, `${CARDS.length} حدثًا من 3200 قبل الميلاد حتى اليوم، في العلوم والفضاء والاختراعات والتاريخ والرياضة والثقافة.`) }),
+      sample);
+    const nameIn = el('input', { type: 'text', id: 'nameIn', maxlength: '14', autocomplete: 'off', placeholder: T('Nickname', 'اسم مستعار'), value: G.name });
+    const codeIn = el('input', { type: 'text', id: 'codeIn', class: 'code-in', dir: 'ltr', maxlength: '4', autocomplete: 'off', placeholder: T('CODE', 'الرمز'), 'aria-label': T('Room code', 'رمز الغرفة'), value: /^[a-z]{4}$/.test(hashCode) ? hashCode.toUpperCase() : '' });
+    if (G.codeDraft) codeIn.value = G.codeDraft;
+    nameIn.addEventListener('input', () => { G.name = clean(nameIn.value); });
+    codeIn.addEventListener('input', () => { G.codeDraft = codeIn.value; });
+    const readName = () => { G.name = clean(nameIn.value) || G.name || T('Player', 'لاعب'); saved.name = G.name; save(); };
+    const join = () => { const c = codeIn.value.trim().toLowerCase(); if (!/^[a-z]{4}$/.test(c)) { G.note = T('Room codes are 4 letters.', 'رمز الغرفة مكوّن من 4 أحرف إنجليزية.'); G.noteWarn = true; return render(); } joinRoom(c); };
+    codeIn.addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
+    const panel = el('div', { class: 'panel' },
+      el('div', { class: 'field' }, el('label', { for: 'nameIn', text: T('Your name', 'اسمك') }), nameIn),
+      el('button', { class: 'btn', type: 'button', onclick: () => { readName(); startGame('solo'); } }, T('Play solo', 'العب وحدك')),
+      el('div', { class: 'or', text: T('race your friends', 'نافس أصدقاءك') }),
+      el('button', { class: 'btn alt', type: 'button', onclick: () => joinRoom(Array.from({ length: 4 }, () => 'abcdefghjkmnpqrstuvwxyz'[Math.floor(Math.random() * 23)]).join('')) }, T('Create race room', 'أنشئ غرفة سباق')),
+      el('div', { class: 'row' }, codeIn, el('button', { class: 'btn alt', type: 'button', onclick: join }, T('Join', 'انضم'))),
+      el('p', { class: 'note' + (G.noteWarn ? ' warn' : ''), text: G.note || (lobby ? T(`Race: first to place ${TARGET} cards wins. Everyone gets the same cards.`, `السباق: أول من يضع ${TARGET} بطاقات بشكل صحيح يفوز. الجميع يحصل على البطاقات نفسها.`) : T('Checking whether live races work here…', 'جارٍ التحقق من إمكانية السباق المباشر هنا…')) }),
+      saved.best ? el('p', { class: 'note', text: T(`Your solo best: ${saved.best} cards placed.`, `أفضل نتيجة فردية لك: ${saved.best} بطاقات.`) }) : null);
+    return el('div', { class: 'menu' }, left, panel);
+  }
+
+  function renderRail() {
+    const list = racers(); const h = host(list);
+    const rail = el('aside', { class: 'rail panel' });
+    rail.append(el('div', { class: 'codebox' }, el('div', {}, el('label', { text: T('Room code', 'رمز الغرفة') }), el('br'), el('strong', { dir: 'ltr', text: G.code.toUpperCase() })),
+      el('button', { class: 'btn alt small', type: 'button', onclick: async e => { const b = e.currentTarget; try { await navigator.clipboard.writeText(G.code.toUpperCase()); b.textContent = T('Copied', 'تم النسخ'); } catch (err) { b.textContent = G.code.toUpperCase(); } } }, T('Copy', 'انسخ'))));
+    rail.append(el('h2', { text: T('Racers', 'المتسابقون') }));
+    const sorted = list.slice().sort((a, b) => (b.ln - a.ln) || (b.h - a.h));
+    for (const r of sorted) {
+      const status = r.rd !== G.rd && G.screen === 'game' ? T('waiting', 'ينتظر') : r.st === 'won' ? T('finished!', 'أنهى!') : r.st === 'out' ? T('out', 'خرج') : r.st === 'lobby' ? T('in lobby', 'في الردهة') : '♥'.repeat(r.h);
+      rail.append(el('div', { class: 'racer' + (r.isMe ? ' me' : '') + (r.st === 'out' ? ' out' : '') },
+        el('div', { class: 'nm' }, el('span', { text: r.n + (r.isMe ? T(' (you)', ' (أنت)') : '') + (h && r.peer === h.peer ? T(' · host', ' · المضيف') : '') }), el('span', { text: `${r.ln}/${TARGET} · ${status}` })),
+        el('div', { class: 'bar' }, el('i', { style: `width:${(r.ln / TARGET) * 100}%` }))));
+    }
+    rail.append(el('p', { class: 'note', text: connected ? T('Live.', 'متصل.') : T('Connecting…', 'جارٍ الاتصال…') }));
+    rail.append(el('button', { class: 'btn alt small', type: 'button', onclick: leaveRoom }, T('Leave room', 'غادر الغرفة')));
+    return rail;
+  }
+
+  function raceResult() {
+    const list = racers().filter(r => r.rd === G.rd && r.st !== 'lobby');
+    const winners = list.filter(r => r.st === 'won');
+    const allDone = list.length > 0 && list.every(r => r.st === 'won' || r.st === 'out');
+    if (!winners.length && !allDone) return null;
+    return list.sort((a, b) => (b.ln - a.ln) || (b.h - a.h));
+  }
+
+  function renderLobby() {
+    const list = racers(); const h = host(list); const amHost = h && h.isMe;
+    const main = el('div', { class: 'panel over' },
+      el('h2', { text: T('Race lobby', 'ردهة السباق') }),
+      el('p', { class: 'instr', text: T(`Share the code ${G.code.toUpperCase()} with friends. They open this game, type the code and press Join. Everyone gets the same cards, and the first to place ${TARGET} correctly wins. Three wrong placements and you're out.`, `شارك الرمز ${G.code.toUpperCase()} مع أصدقائك. يفتحون هذه اللعبة ويكتبون الرمز ثم يضغطون انضم. الجميع يحصل على البطاقات نفسها، وأول من يضع ${TARGET} بطاقات بشكل صحيح يفوز. ثلاثة أخطاء وتخرج من السباق.`) }),
+      amHost ? el('button', { class: 'btn', type: 'button', onclick: hostStart }, T('Start race', 'ابدأ السباق')) : el('p', { class: 'note', text: h ? T(`Waiting for ${h.n} to start the race.`, `بانتظار ${h.n} ليبدأ السباق.`) : T('Waiting for the host…', 'بانتظار المضيف…') }));
+    return el('div', { class: 'app race' }, main, renderRail());
+  }
+
+  function renderGame() {
+    const main = el('div', { class: 'wrap', style: 'gap:18px' });
+    if (G.mode === 'race') {
+      const res = raceResult();
+      if (res && !G.reveal) {
+        const list = racers(); const h = host(list); const amHost = h && h.isMe;
+        const top = res[0];
+        main.append(el('div', { class: 'panel over' },
+          el('h2', { text: top.isMe ? T('You win the race!', 'فزت بالسباق!') : T(`${top.n} wins!`, `فاز ${top.n}!`) }),
+          el('ol', { class: 'ranks' }, ...res.map((r, i) => el('li', {}, el('span', { text: String(i + 1) }), el('span', { text: r.n + (r.isMe ? T(' (you)', ' (أنت)') : '') }), el('b', { text: T(`${r.ln} cards`, `${r.ln} بطاقات`) })))),
+          amHost ? el('button', { class: 'btn', type: 'button', onclick: hostStart }, T('Race again', 'سباق جديد')) : el('p', { class: 'note', text: T('The host can start another race.', 'يمكن للمضيف بدء سباق جديد.') })));
+      }
+    }
+    if (G.reveal) {
+      const r = G.reveal;
+      main.append(el('section', { class: 'hand' },
+        cardEl(r.c, true, r.ok ? 'new' : 'bad'),
+        el('div', { class: 'reveal' + (r.ok ? '' : ' bad'), role: 'status' },
+          el('h3', { text: r.ok ? T('Right on the thread!', 'في مكانها تمامًا!') : T(`Not quite. It belongs ${whereText(r.where)}.`, `ليس تمامًا. مكانها ${whereText(r.where)}.`) }),
+          el('p', { class: 'fact' }, el('b', { text: T('Did you know? ', 'هل تعلم؟ ') }), fact(r.c)),
+          el('div', { class: 'row' }, el('button', { class: 'btn', id: 'nextBtn', type: 'button', onclick: next }, G.done ? (G.mode === 'race' ? T('See the race', 'شاهد السباق') : T('See my result', 'اعرض نتيجتي')) : T('Next card', 'البطاقة التالية'))))));
+    } else if (G.hand && !G.done) {
+      main.append(el('section', { class: 'hand' },
+        cardEl(G.hand, false),
+        el('div', { class: 'hand-side' },
+          el('p', { class: 'instr', text: T('When did this happen? Choose a + slot on your timeline below to place the card.', 'متى حدث هذا؟ اختر خانة + على خطك الزمني بالأسفل لتضع البطاقة.') }),
+          G.hint != null ? el('p', { class: 'instr', style: 'color:var(--thread)', text: hintText(G.hint) }) : null,
+          el('div', { class: 'row' }, el('button', { class: 'btn alt small', type: 'button', disabled: G.hints <= 0, onclick: hint }, T(`Century hint (${G.hints} left)`, `تلميح القرن (متبقٍّ ${G.hints})`))))));
+    } else if (G.mode === 'race' && G.done) {
+      main.append(el('p', { class: 'instr', text: G.placed >= TARGET ? T('You finished! Waiting for the others…', 'أنهيت! بانتظار الآخرين…') : T('You’re out of hearts. Watch the others finish.', 'نفدت قلوبك. شاهد الآخرين وهم ينهون.') }));
+    }
+    const th = el('div', { class: 'thread', role: 'list' });
+    const canPlace = !!G.hand && !G.reveal && !G.done;
+    G.line.forEach((c, i) => {
+      th.append(el('button', { class: 'slot', type: 'button', disabled: !canPlace, 'aria-label': i === 0 ? T(`Place before ${fmtYear(c.y, c.approx)}`, `ضعها قبل ${fmtYear(c.y, c.approx)}`) : T(`Place between ${fmtYear(G.line[i - 1].y)} and ${fmtYear(c.y)}`, `ضعها بين ${fmtYear(G.line[i - 1].y)} و${fmtYear(c.y)}`), onclick: () => place(i) }, '+'));
+      th.append(cardEl(c, true, c.id === G.lastNew ? 'new' : ''));
+    });
+    const last = G.line[G.line.length - 1];
+    th.append(el('button', { class: 'slot', type: 'button', disabled: !canPlace, 'aria-label': T(`Place after ${fmtYear(last.y, last.approx)}`, `ضعها بعد ${fmtYear(last.y, last.approx)}`), onclick: () => place(G.line.length) }, '+'));
+    main.append(el('section', {},
+      el('div', { class: 'thread-head' }, el('h2', { text: T('Your timeline', 'خطك الزمني') }), el('span', { text: T('Oldest on the left (top on phones), newest on the right', 'الأقدم على اليمين (في الأعلى على الهاتف)، والأحدث على اليسار') })),
+      el('div', { class: 'thread-wrap' }, th)));
+    if (G.mode === 'race') return el('div', { class: 'app race' }, main, renderRail());
+    return main;
+  }
+
+  function renderOver() {
+    return el('div', { class: 'panel over' },
+      el('h2', { text: G.placed >= 15 ? T('Time lord!', 'سيّد الزمن!') : G.placed >= 8 ? T('Sharp sense of history', 'حسّ تاريخي قوي') : T('Good start', 'بداية جيدة') }),
+      el('p', { class: 'instr', text: T(`You placed ${G.placed} cards. Your best streak was ${G.bestStreak}.`, `وضعت ${G.placed} بطاقات بشكل صحيح. أطول سلسلة لك كانت ${G.bestStreak}.`) + (G.newBest ? T(' That’s a new personal best!', ' هذا رقم قياسي شخصي جديد!') : saved.best ? T(` Your best is ${saved.best}.`, ` أفضل نتيجة لك ${saved.best}.`) : '') }),
+      el('div', { class: 'row' },
+        el('button', { class: 'btn', type: 'button', onclick: () => startGame('solo') }, T('Play again', 'العب مرة أخرى')),
+        el('button', { class: 'btn alt', type: 'button', onclick: () => { G.screen = 'menu'; render(); } }, T('Menu', 'القائمة'))),
+      el('section', { style: 'width:100%' }, el('div', { class: 'thread-head' }, el('h2', { text: T('Your final timeline', 'خطك الزمني النهائي') })),
+        el('div', { class: 'thread-wrap' }, el('div', { class: 'thread' }, ...G.line.map(c => cardEl(c, true))))));
+  }
+
+  function render() {
+    const top = el('header', { class: 'top' }, el('div', { class: 'brand', text: T('Time Thread', 'خيط الزمن') }));
+    if (G.screen === 'game') {
+      top.append(el('div', { class: 'stats' },
+        el('span', {}, T('Placed ', 'الموضوعة '), el('b', { text: G.mode === 'race' ? `${G.placed}/${TARGET}` : String(G.placed) })),
+        el('span', {}, T('Streak ', 'السلسلة '), el('b', { text: String(G.streak) })),
+        el('span', { class: 'hearts', 'aria-label': T(`${G.hearts} hearts left`, `${G.hearts} قلوب متبقية`), text: hearts() }),
+        G.mode === 'solo' ? el('button', { class: 'btn alt small', type: 'button', onclick: () => { G.screen = 'menu'; render(); } }, T('Quit', 'خروج')) : null,
+        langSwitch()));
+    } else top.append(langSwitch());
+    const body = G.screen === 'menu' ? renderMenu() : G.screen === 'lobby' ? renderLobby() : G.screen === 'over' ? renderOver() : renderGame();
+    const focusId = document.activeElement && document.activeElement.id;
+    root.replaceChildren(top, body);
+    if (focusId) { const f = document.getElementById(focusId); if (f) f.focus(); }
+  }
+  render();
+})();
+</script>
+
+</body>
+</html>

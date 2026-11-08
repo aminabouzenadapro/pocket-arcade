@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Pocket Arcade</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Lexend:wght@400;600&family=JetBrains+Mono:wght@500&family=Cairo:wght@500;700;900&display=swap">
+<style>
+/* Layout: shelf of game tiles in an auto-fill grid under a short header with filter chips and a language switch; each built-in game opens full-width in the same page via #hash; Arabic flips the page to right-to-left */
+:root {
+  --bg: #f2f5f1;
+  --panel: #ffffff;
+  --ink: #17202b;
+  --muted: #5d6a74;
+  --edge: #d9e0db;
+  --accent: #ff6b1a;
+  --accent-ink: #ffffff;
+  --cool: #1f7aff;
+  --good: #14a46c;
+  --bad: #e5384f;
+  --warn: #f4b62a;
+  --tile-a: #ffe3cf;
+  --tile-b: #d8e8ff;
+  --tile-c: #d4f3e3;
+  --tile-d: #f6dcf0;
+  --font-display: 'Lilita One', 'Cairo', 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif;
+  --font-body: 'Lexend', 'Cairo', 'Segoe UI', system-ui, sans-serif;
+  --font-num: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171d; --panel: #1b222a; --ink: #eef2f0; --muted: #9aa7b0; --edge: #2c3640;
+    --accent: #ff8a3d; --accent-ink: #17110b; --cool: #5ea2ff; --good: #3fd295; --bad: #ff6b7d; --warn: #f4b62a;
+    --tile-a: #3a2618; --tile-b: #1b2c45; --tile-c: #15342a; --tile-d: #3a1f35;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171d; --panel: #1b222a; --ink: #eef2f0; --muted: #9aa7b0; --edge: #2c3640;
+  --accent: #ff8a3d; --accent-ink: #17110b; --cool: #5ea2ff; --good: #3fd295; --bad: #ff6b7d; --warn: #f4b62a;
+  --tile-a: #3a2618; --tile-b: #1b2c45; --tile-c: #15342a; --tile-d: #3a1f35;
+  color-scheme: dark;
+}
+/* Arabic: Cairo for display and body (Lilita and Lexend have no Arabic letters) */
+:root[lang="ar"] {
+  --font-display: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+  --font-body: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+}
+:root[lang="ar"] .brand h1, :root[lang="ar"] .tile h2, :root[lang="ar"] .gamebar h2, :root[lang="ar"] .btn { font-weight: 900; }
+:root[lang="ar"] .tile p, :root[lang="ar"] .brand p, :root[lang="ar"] .msg, :root[lang="ar"] .learn { line-height: 1.75; }
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 22px 56px;
+}
+.wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 22px; }
+header.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.brand h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(38px, 8vw, 64px); line-height: 1; margin: 0; letter-spacing: .01em; }
+.brand h1 span { color: var(--accent); }
+.brand p { margin: 8px 0 0; color: var(--muted); font-size: 16px; max-width: 52ch; line-height: 1.5; }
+.top-side { display: grid; gap: 8px; justify-items: end; }
+.count { font-family: var(--font-num); font-size: 13px; color: var(--muted); }
+.lang { display: inline-flex; border: 2px solid var(--edge); border-radius: 999px; overflow: hidden; background: var(--panel); }
+.lang button { font: 600 14px var(--font-body); border: 0; background: transparent; color: var(--ink); padding: 6px 14px; cursor: pointer; }
+.lang button[lang="ar"] { font-family: 'Cairo', sans-serif; font-weight: 700; }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font: 600 14px var(--font-body); color: var(--ink); background: var(--panel); border: 2px solid var(--edge); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--cool); outline-offset: 2px; }
+
+.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 16px; }
+.tile { background: var(--panel); border: 2px solid var(--edge); border-radius: 18px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+.tile .art { height: 120px; }
+.tile .art canvas { width: 100%; height: 100%; display: block; }
+.tile .body { padding: 14px 16px 16px; display: grid; gap: 8px; align-content: start; }
+.tile h2 { margin: 0; font: 400 24px var(--font-display); letter-spacing: .01em; }
+.tile p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { font: 600 11px var(--font-body); letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: var(--bg); color: var(--muted); }
+.tag.friends { background: var(--cool); color: #fff; }
+.tag.new { background: var(--accent); color: var(--accent-ink); }
+.tile .foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
+.best { font: 500 12px var(--font-body); color: var(--muted); }
+.btn { font: 400 17px var(--font-display); letter-spacing: .03em; color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 12px; padding: 10px 18px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { filter: brightness(1.06); }
+.btn.alt { background: transparent; color: var(--ink); border: 2px solid var(--edge); }
+.btn.small { font-size: 15px; padding: 7px 12px; }
+.btn:disabled { opacity: .45; cursor: default; }
+
+/* game view */
+.gamebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+.gamebar h2 { margin: 0; font: 400 32px var(--font-display); }
+.stage { background: var(--panel); border: 2px solid var(--edge); border-radius: 18px; padding: 20px; display: grid; gap: 16px; justify-items: center; }
+.hud { display: flex; gap: 22px; font: 500 14px var(--font-body); color: var(--muted); flex-wrap: wrap; justify-content: center; font-variant-numeric: tabular-nums; }
+.hud b { color: var(--ink); font: 500 18px var(--font-num); }
+.msg { font-size: 15px; color: var(--muted); text-align: center; max-width: 52ch; line-height: 1.5; margin: 0; min-height: 1.5em; }
+.msg.win { color: var(--good); font-weight: 600; }
+.learn { font-size: 13px; color: var(--muted); border-top: 2px dashed var(--edge); padding-top: 12px; max-width: 60ch; text-align: center; margin: 0; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+
+.grid { display: grid; gap: 10px; width: min(100%, 440px); }
+.pairs { grid-template-columns: repeat(4, 1fr); }
+.pcard { aspect-ratio: 1; max-width: 100%; border-radius: 14px; border: 0; cursor: pointer; font: 400 clamp(26px, 8vw, 40px) 'Lilita One', sans-serif; background: var(--ink); color: var(--bg); }
+.pcard.up, .pcard.done { background: var(--tile-b); color: var(--ink); }
+.pcard.done { background: var(--tile-c); cursor: default; }
+
+.hunt { grid-template-columns: repeat(5, 1fr); gap: 8px; direction: ltr; }
+.hcell { aspect-ratio: 1; max-width: 100%; border-radius: 10px; border: 2px solid var(--edge); background: var(--bg); color: var(--ink); font: 500 clamp(16px, 5vw, 24px) var(--font-num); cursor: pointer; }
+.hcell.hit { background: var(--tile-c); color: var(--muted); border-color: transparent; }
+.hcell.miss { border-color: var(--bad); }
+
+.pad { width: min(100%, 520px); height: 260px; border-radius: 18px; border: 0; cursor: pointer; font: 400 clamp(26px, 6vw, 38px) var(--font-display); color: #fff; background: var(--cool); }
+.pad.wait { background: var(--bad); }
+.pad.go { background: var(--good); }
+.pad.idle { background: var(--ink); color: var(--bg); }
+.times { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; font: 500 13px var(--font-num); }
+.times span { background: var(--bg); padding: 4px 8px; border-radius: 6px; }
+
+.q { font: 400 clamp(40px, 10vw, 64px) 'Lilita One', var(--font-display); letter-spacing: .02em; font-variant-numeric: tabular-nums; direction: ltr; }
+.opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: min(100%, 420px); }
+.opt { font: 500 24px var(--font-num); padding: 18px 0; border-radius: 14px; border: 2px solid var(--edge); background: var(--bg); color: var(--ink); cursor: pointer; }
+.opt:hover { border-color: var(--accent); }
+.meter { width: min(100%, 420px); height: 10px; border-radius: 5px; background: var(--bg); overflow: hidden; border: 1px solid var(--edge); }
+.meter i { display: block; height: 100%; background: var(--accent); }
+.foot-note { color: var(--muted); font-size: 13px; text-align: center; }
+
+/* Dots & Boxes */
+.modes { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.dots { display: grid; grid-template-columns: repeat(4, 14px 1fr) 14px; grid-template-rows: repeat(4, 14px 1fr) 14px; width: min(100%, 420px); aspect-ratio: 1; direction: ltr; }
+.dot { background: var(--ink); border-radius: 50%; }
+.ln { border: 0; padding: 0; background: var(--edge); cursor: pointer; border-radius: 7px; margin: 0; opacity: .55; }
+.ln:hover:not(:disabled) { background: var(--muted); opacity: 1; }
+.ln.p1 { background: var(--accent); opacity: 1; cursor: default; }
+.ln.p2 { background: var(--cool); opacity: 1; cursor: default; }
+.ln.last { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--ink); }
+.bx { display: grid; place-items: center; font: 400 clamp(18px, 5vw, 28px) 'Lilita One', sans-serif; margin: 4px; border-radius: 6px; }
+.bx.p1 { background: var(--tile-a); color: var(--accent); }
+.bx.p2 { background: var(--tile-b); color: var(--cool); }
+.score2 { display: flex; gap: 18px; font: 400 22px var(--font-display); flex-wrap: wrap; justify-content: center; }
+.score2 .p1 { color: var(--accent); } .score2 .p2 { color: var(--cool); }
+.score2 .turn { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 3px; }
+
+/* Word Scramble */
+.letters { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.letters span { width: 48px; height: 56px; display: grid; place-items: center; border-radius: 10px; background: var(--tile-c); font: 700 30px var(--font-display); text-transform: uppercase; }
+.wordform { display: flex; gap: 8px; width: min(100%, 420px); }
+.wordform input { flex: 1; min-width: 0; font: 600 20px var(--font-body); letter-spacing: .1em; text-transform: uppercase; padding: 10px 12px; border-radius: 12px; border: 2px solid var(--edge); background: var(--bg); color: var(--ink); }
+:root[lang="ar"] .wordform input { letter-spacing: 0; }
+.wordform input:focus { outline: none; border-color: var(--accent); }
+.hint { font-size: 15px; color: var(--ink); text-align: center; max-width: 46ch; margin: 0; }
+
+/* Lock Pick */
+.guesses { display: grid; gap: 6px; width: min(100%, 380px); }
+.grow { display: grid; grid-template-columns: 28px repeat(4, 1fr) auto; gap: 6px; align-items: center; font: 500 20px var(--font-num); direction: ltr; }
+.grow .n { font-size: 12px; color: var(--muted); }
+.grow .d { text-align: center; padding: 8px 0; border-radius: 8px; background: var(--bg); }
+.grow .d.hit { background: var(--good); color: #fff; }
+.grow .d.near { background: var(--warn); color: #1b1405; }
+.grow .fb { font: 500 12px var(--font-body); color: var(--muted); white-space: nowrap; }
+.keypad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: min(100%, 380px); direction: ltr; }
+.key { font: 500 20px var(--font-num); padding: 12px 0; border-radius: 10px; border: 2px solid var(--edge); background: var(--bg); color: var(--ink); cursor: pointer; }
+.key:disabled { opacity: .35; cursor: default; }
+.entry { display: flex; gap: 6px; direction: ltr; }
+.entry span { width: 46px; height: 52px; display: grid; place-items: center; border-radius: 10px; border: 2px dashed var(--edge); font: 500 24px var(--font-num); }
+.legend2 { display: flex; gap: 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; justify-content: center; }
+.legend2 i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-inline-end: 4px; }
+
+/* Bigger or Smaller */
+.vs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: stretch; width: min(100%, 620px); }
+.side { border-radius: 16px; padding: 18px 14px; display: grid; gap: 8px; align-content: center; text-align: center; min-width: 0; border: 3px solid transparent; font: inherit; color: inherit; cursor: pointer; }
+.side:disabled { cursor: default; }
+.side.l { background: var(--tile-a); } .side.r { background: var(--tile-b); }
+.side h3 { margin: 0; font: 400 clamp(20px, 5vw, 28px) var(--font-display); }
+:root[lang="ar"] .side h3 { font-weight: 700; }
+.side .val { font: 500 16px var(--font-body); color: var(--muted); min-height: 1.4em; }
+.side.right { border-color: var(--good); } .side.wrong { border-color: var(--bad); }
+.or2 { align-self: center; font: 400 20px var(--font-display); color: var(--muted); }
+@media (max-width: 480px) { .vs { grid-template-columns: minmax(0, 1fr); } .or2 { justify-self: center; } }
+
+/* Colour Clash */
+.cword { font: 900 clamp(48px, 13vw, 84px) var(--font-display); letter-spacing: .02em; min-height: 1.2em; }
+.cbtns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: min(100%, 420px); }
+.cbtn { font: 700 18px var(--font-body); padding: 16px 0; border-radius: 14px; border: 0; color: #fff; cursor: pointer; }
+
+/* Pattern Recall */
+.recall { grid-template-columns: repeat(3, 1fr); width: min(100%, 360px); direction: ltr; }
+.rcell { aspect-ratio: 1; max-width: 100%; border-radius: 16px; border: 0; background: var(--tile-b); cursor: pointer; transition: background .12s, transform .12s; }
+.rcell.lit { background: var(--accent); transform: scale(.96); }
+.rcell.bad { background: var(--bad); }
+.rcell:disabled { cursor: default; }
+
+/* Odd Shade */
+.shade { width: min(100%, 420px); aspect-ratio: 1; gap: 6px; direction: ltr; }
+.scell { border: 0; border-radius: 10px; cursor: pointer; max-width: 100%; }
+.scell.reveal { outline: 4px solid var(--ink); outline-offset: -4px; }
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+(() => {
+  const app = document.getElementById('app');
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v);
+    }
+    for (const k of kids) if (k != null) n.append(k);
+    return n;
+  };
+  const store = (k, v) => { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); } catch (e) {} };
+  const load = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
+
+  // ---------- language ----------
+  let lang = load('pocketArcadeLang', null) || ((navigator.language || '').toLowerCase().startsWith('ar') ? 'ar' : 'en');
+  const T = (en, ar) => lang === 'ar' ? ar : en;
+  function applyLang() { document.documentElement.lang = lang; document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'; }
+  applyLang();
+
+  let best = {};
+  try { best = JSON.parse(load('pocketArcade', '{}')) || {}; } catch (e) {}
+  const saveBest = (k, v, lowerIsBetter) => {
+    const old = best[k];
+    const better = old == null || (lowerIsBetter ? v < old : v > old);
+    if (better) { best[k] = v; store('pocketArcade', best); }
+    return better;
+  };
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  let cleanup = null;
+  let filter = load('pocketArcadeFilter', 'all');
+
+  // ---------- catalogue ----------
+  const GAMES = [
+    { id: 'comet', tags: ['friends', 'action'], tile: '--tile-a', url: 'comet-party.html',
+      name: () => T('Comet Party', 'حفلة المذنّبات'), blurb: () => T('Steer a comet and grab more sparks than your friends in 60-second rounds. Dodge the mines.', 'قُد مذنّبك واجمع شرارات أكثر من أصدقائك في جولات مدتها 60 ثانية، وتجنّب الألغام.') },
+    { id: 'thread', tags: ['friends', 'learn'], tile: '--tile-b', url: 'time-thread.html',
+      name: () => T('Time Thread', 'خيط الزمن'), blurb: () => T('Put 86 events from history in order, from 3200 BCE to today. Race friends or play solo.', 'رتّب 86 حدثًا من التاريخ، من 3200 قبل الميلاد حتى اليوم. نافس أصدقاءك أو العب وحدك.') },
+    { id: 'orbit', tags: ['solo', 'action'], tile: '--tile-d', url: 'orbit-keeper.html',
+      name: () => T('Orbit Keeper', 'حارس المدار'), blurb: () => T('Turn the shield around the core, block red shards, let gold sparks through and fire a nova.', 'أدِر الدرع حول النواة، وصُدّ الشظايا الحمراء، ودَع الشرارات الذهبية تمرّ، ثم أطلق الموجة.') },
+    { id: 'dots', tags: ['friends', 'brain'], tile: '--tile-c',
+      name: () => T('Dots & Boxes', 'النقاط والمربعات'), blurb: () => T('Take turns drawing lines. Close a box to claim it and go again. Play a friend on one device, or the computer.', 'ارسموا الخطوط بالتناوب. أغلِق مربعًا لتربحه وتلعب مرة أخرى. العب مع صديق على الجهاز نفسه أو ضد الكمبيوتر.'),
+      best: v => T(`Wins vs computer: ${v}`, `مرات الفوز على الكمبيوتر: ${v}`) },
+    { id: 'stroop', tags: ['solo', 'brain', 'learn'], tile: '--tile-a', isNew: true,
+      name: () => T('Colour Clash', 'صراع الألوان'), blurb: () => T('Tap the colour of the ink, not the word you read. It’s harder than it sounds!', 'اضغط على لون الحبر، لا على الكلمة المكتوبة. الأمر أصعب مما تظن!'),
+      best: v => T(`Best: ${v} correct`, `أفضل نتيجة: ${v} صحيحة`) },
+    { id: 'recall', tags: ['solo', 'brain'], tile: '--tile-b', isNew: true,
+      name: () => T('Pattern Recall', 'ذاكرة النمط'), blurb: () => T('Watch the squares light up, then repeat the pattern. It gets one step longer each time.', 'شاهد المربعات تضيء ثم أعِد النمط نفسه. يزداد النمط خطوة في كل مرة.'),
+      best: v => T(`Best: ${v} steps`, `أطول نمط: ${v} خطوات`) },
+    { id: 'shade', tags: ['solo', 'action'], tile: '--tile-d', isNew: true,
+      name: () => T('Odd Shade', 'اللون المختلف'), blurb: () => T('Find the one square that is a slightly different colour. The difference shrinks every level.', 'اعثر على المربع الذي يختلف لونه قليلًا. يصغر الفرق في كل مستوى.'),
+      best: v => T(`Best: level ${v}`, `أعلى مستوى: ${v}`) },
+    { id: 'math', tags: ['solo', 'learn'], tile: '--tile-c',
+      name: () => T('Quick Sums', 'حساب سريع'), blurb: () => T('Solve as many sums as you can in 30 seconds. They get harder as you go.', 'حُلّ أكبر عدد من المسائل في 30 ثانية، وتزداد صعوبتها كلما تقدّمت.'),
+      best: v => T(`Best: ${v} correct`, `أفضل نتيجة: ${v} صحيحة`) },
+    { id: 'words', tags: ['solo', 'learn'], tile: '--tile-d',
+      name: () => T('Word Scramble', 'كلمات مبعثرة'), blurb: () => T('Unscramble as many words as you can in 60 seconds. Each word comes with its meaning.', 'رتّب حروف أكبر عدد من الكلمات في 60 ثانية. يظهر معنى كل كلمة معها.'),
+      best: v => T(`Best: ${v} words`, `أفضل نتيجة: ${v} كلمات`) },
+    { id: 'bigger', tags: ['solo', 'learn'], tile: '--tile-a',
+      name: () => T('Bigger or Smaller', 'أكبر أم أصغر'), blurb: () => T('Which is taller, wider or higher? Compare real buildings, planets and mountains, and keep the streak going.', 'أيهما أطول أو أعرض أو أعلى؟ قارن بين مبانٍ وكواكب وجبال حقيقية، وحافظ على سلسلة إجاباتك.'),
+      best: v => T(`Best streak: ${v}`, `أطول سلسلة: ${v}`) },
+    { id: 'lock', tags: ['solo', 'brain'], tile: '--tile-b',
+      name: () => T('Lock Pick', 'فكّ القفل'), blurb: () => T('Crack a secret 4-digit code. Each guess tells you which digits are right and which are in the wrong place.', 'اكسر رمزًا سريًا من 4 أرقام. كل محاولة تخبرك أي الأرقام صحيحة وأيها في المكان الخطأ.'),
+      best: v => T(`Best: ${v} guesses`, `أفضل نتيجة: ${v} محاولات`) },
+    { id: 'pairs', tags: ['solo', 'brain'], tile: '--tile-b',
+      name: () => T('Pair Up', 'طابِق'), blurb: () => T('Flip cards and find all 8 matching pairs in as few moves as you can.', 'اقلب البطاقات واعثر على الأزواج الثمانية بأقل عدد من المحاولات.'),
+      best: v => T(`Best: ${v} moves`, `أفضل نتيجة: ${v} محاولة`) },
+    { id: 'hunt', tags: ['solo', 'brain', 'learn'], tile: '--tile-a',
+      name: () => T('Number Hunt', 'صيد الأرقام'), blurb: () => T('Tap 1 to 25 in order on a shuffled grid, as fast as you can. Good focus training.', 'اضغط على الأرقام من 1 إلى 25 بالترتيب بأسرع ما يمكن. تمرين رائع للتركيز.'),
+      best: v => T(`Best: ${(v / 1000).toFixed(2)} s`, `أفضل وقت: ${(v / 1000).toFixed(2)} ث`) },
+    { id: 'reflex', tags: ['solo', 'action'], tile: '--tile-d',
+      name: () => T('Reflex Check', 'اختبار رد الفعل'), blurb: () => T('Wait for green, then tap. Five tries, and your average is your score.', 'انتظر اللون الأخضر ثم اضغط. خمس محاولات، ومتوسطها هو نتيجتك.'),
+      best: v => T(`Best: ${v} ms average`, `أفضل متوسط: ${v} مللي ثانية`) },
+  ];
+  const FILTERS = () => [['all', T('All games', 'كل الألعاب')], ['friends', T('With friends', 'مع الأصدقاء')], ['learn', T('Learn something', 'تعلّم شيئًا')], ['brain', T('Brain', 'ذكاء')], ['action', T('Action', 'حركة')]];
+  const TAG = t => ({ friends: T('With friends', 'مع الأصدقاء'), solo: T('Solo', 'فردي'), learn: T('Learn', 'تعلّم'), brain: T('Brain', 'ذكاء'), action: T('Action', 'حركة') })[t];
+
+  // ---------- tile art ----------
+  function drawArt(cv, id, bgVar) {
+    const cs = getComputedStyle(document.documentElement);
+    const v = n => cs.getPropertyValue(n).trim();
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    const w = cv.clientWidth || 260, h = cv.clientHeight || 120;
+    cv.width = w * dpr; cv.height = h * dpr;
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.fillStyle = v(bgVar); c.fillRect(0, 0, w, h);
+    const ink = v('--ink'), acc = v('--accent'), cool = v('--cool'), good = v('--good'), bad = v('--bad'), panel = v('--panel');
+    const cx = w / 2, cy = h / 2;
+    const dot = (x, y, r, col) => { c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
+    const rr = (x, y, ww, hh, r) => { c.beginPath(); if (c.roundRect) c.roundRect(x, y, ww, hh, r); else c.rect(x, y, ww, hh); };
+    const text = (s, x, y, font, col) => { c.fillStyle = col; c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(s, x, y); };
+    const disp = lang === 'ar' ? '700 22px Cairo, sans-serif' : '400 22px "Lilita One", sans-serif';
+    if (id === 'comet') {
+      [[acc, -70, 10], [cool, 20, -16], [good, 80, 18]].forEach(([col, dx, dy]) => {
+        for (let i = 6; i > 0; i--) { c.globalAlpha = 0.12 * (7 - i); dot(cx + dx - i * 9, cy + dy + i * 3, 12 - i, col); }
+        c.globalAlpha = 1; dot(cx + dx, cy + dy, 13, col);
+      });
+      c.fillStyle = '#ffc93c';
+      [[cx - 20, cy + 30], [cx + 45, cy - 34], [cx - 95, cy - 28], [cx + 110, cy + 36]].forEach(([x, y]) => { c.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, r = i % 2 ? 2.5 : 7; c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } c.fill(); });
+      dot(cx + 120, cy - 20, 6, bad);
+    } else if (id === 'thread') {
+      c.strokeStyle = acc; c.lineWidth = 3; c.beginPath(); c.moveTo(14, cy); c.lineTo(w - 14, cy); c.stroke();
+      ['1453', '1903', '????', '1969'].forEach((t, i) => {
+        const x = w * [0.16, 0.38, 0.62, 0.84][i] - 26;
+        c.fillStyle = panel; c.strokeStyle = ink; c.lineWidth = 1.5; rr(x, cy - 24, 52, 48, 7); c.fill(); c.stroke();
+        text(t, x + 26, cy, '500 12px "JetBrains Mono", monospace', i === 2 ? acc : ink);
+      });
+    } else if (id === 'orbit') {
+      c.strokeStyle = ink; c.globalAlpha = .2; c.lineWidth = 1; c.beginPath(); c.arc(cx, cy, 40, 0, Math.PI * 2); c.stroke(); c.globalAlpha = 1;
+      dot(cx, cy, 14, acc);
+      c.strokeStyle = cool; c.lineWidth = 6; c.lineCap = 'round'; c.beginPath(); c.arc(cx, cy, 40, -2.2, -1.2); c.stroke();
+      c.fillStyle = bad; [[cx - 60, cy - 46], [cx + 80, cy + 10], [cx - 90, cy + 30]].forEach(([x, y]) => { c.save(); c.translate(x, y); c.rotate(.6); c.fillRect(-5, -5, 10, 10); c.restore(); });
+      dot(cx + 70, cy - 38, 6, '#ffc93c');
+    } else if (id === 'math') {
+      text('7 × 8 = ?', cx, cy - 6, '400 40px "Lilita One", sans-serif', ink);
+      c.fillStyle = acc; c.fillRect(cx - 80, cy + 30, 110, 6); c.globalAlpha = .25; c.fillRect(cx + 30, cy + 30, 50, 6); c.globalAlpha = 1;
+    } else if (id === 'pairs') {
+      ['★', '●', '★', '▲', '■', '●'].forEach((s, i) => {
+        const x = cx - 132 + i * 46, up = i === 0 || i === 2 || i === 4;
+        c.fillStyle = up ? panel : ink; rr(x, cy - 22, 38, 44, 7); c.fill();
+        if (up) text(s, x + 19, cy + 1, '400 22px "Lilita One", sans-serif', i === 4 ? cool : acc);
+      });
+    } else if (id === 'hunt') {
+      [7, 1, 12, 4, 9, 3, 15, 2, 11, 6].forEach((n, i) => {
+        const x = cx - 120 + (i % 5) * 50, y = cy - 26 + Math.floor(i / 5) * 32;
+        c.fillStyle = n <= 3 ? good : panel; c.globalAlpha = n <= 3 ? .35 : 1; rr(x, y, 42, 26, 6); c.fill(); c.globalAlpha = 1;
+        text(String(n), x + 21, y + 13, '500 13px "JetBrains Mono", monospace', ink);
+      });
+    } else if (id === 'reflex') {
+      c.fillStyle = bad; rr(cx - 120, cy - 30, 110, 60, 12); c.fill();
+      c.fillStyle = good; rr(cx + 10, cy - 30, 110, 60, 12); c.fill();
+      text(T('wait…', 'انتظر…'), cx - 65, cy, disp, '#fff'); text(T('TAP!', 'اضغط!'), cx + 65, cy, disp, '#fff');
+    } else if (id === 'dots') {
+      const s = 26, x0 = cx - s * 2, y0 = cy - s * 1.5;
+      c.globalAlpha = .3; c.fillStyle = acc; c.fillRect(x0 + 2, y0 + 2, s - 4, s - 4); c.fillStyle = cool; c.fillRect(x0 + s * 2 + 2, y0 + s + 2, s - 4, s - 4); c.globalAlpha = 1;
+      c.lineWidth = 4; c.lineCap = 'round';
+      [[0, 0, 1, 0, acc], [0, 0, 0, 1, acc], [1, 0, 1, 1, acc], [0, 1, 1, 1, acc], [2, 1, 3, 1, cool], [2, 1, 2, 2, cool], [3, 1, 3, 2, cool], [2, 2, 3, 2, cool], [1, 2, 2, 2, cool], [3, 0, 4, 0, acc]].forEach(([a, b, d, e, col]) => { c.strokeStyle = col; c.beginPath(); c.moveTo(x0 + a * s, y0 + b * s); c.lineTo(x0 + d * s, y0 + e * s); c.stroke(); });
+      for (let i = 0; i <= 4; i++) for (let j = 0; j <= 3; j++) dot(x0 + i * s, y0 + j * s, 4, ink);
+    } else if (id === 'words') {
+      const letters = lang === 'ar' ? ['ك', 'ب', 'و', 'ك'] : ['N', 'E', 'P', 'T', 'A', 'L'];
+      letters.forEach((ch, i) => {
+        const x = cx - letters.length * 23 + i * 46 + 3;
+        c.fillStyle = panel; rr(x, cy - 24, 40, 48, 8); c.fill();
+        text(ch, x + 20, cy + 1, lang === 'ar' ? '700 26px Cairo, sans-serif' : '400 26px "Lilita One", sans-serif', i % 2 ? acc : ink);
+      });
+    } else if (id === 'lock') {
+      [['3', good], ['7', v('--warn')], ['1', panel], ['9', good]].forEach(([d, col], i) => {
+        const x = cx - 98 + i * 50;
+        c.fillStyle = col; rr(x, cy - 24, 44, 48, 8); c.fill();
+        text(d, x + 22, cy + 1, '500 24px "JetBrains Mono", monospace', col === panel ? ink : '#fff');
+      });
+    } else if (id === 'bigger') {
+      c.fillStyle = ink; c.globalAlpha = .85;
+      c.fillRect(cx - 70, cy - 42, 18, 82); c.fillRect(cx - 64, cy - 56, 6, 14);
+      c.beginPath(); c.moveTo(cx + 30, cy + 40); c.lineTo(cx + 60, cy - 30); c.lineTo(cx + 90, cy + 40); c.fill();
+      c.globalAlpha = 1; text('?', cx - 10, cy, '400 26px "Lilita One", sans-serif', acc);
+    } else if (id === 'stroop') {
+      const words = lang === 'ar' ? [['أحمر', cool], ['أزرق', good], ['أخضر', bad]] : [['RED', cool], ['BLUE', good], ['GREEN', bad]];
+      words.forEach(([wd, col], i) => text(wd, cx + (i - 1) * 88, cy + (i % 2 ? 14 : -10), lang === 'ar' ? '900 30px Cairo, sans-serif' : '400 30px "Lilita One", sans-serif', col));
+    } else if (id === 'recall') {
+      for (let i = 0; i < 9; i++) { const x = cx - 50 + (i % 3) * 34, y = cy - 50 + Math.floor(i / 3) * 34; c.fillStyle = [1, 5, 6].includes(i) ? acc : panel; rr(x, y, 30, 30, 7); c.fill(); }
+      text('1', cx - 50 + 34 + 15, cy - 50 + 15, '400 14px "Lilita One", sans-serif', '#fff');
+      text('2', cx - 50 + 68 + 15, cy - 50 + 34 + 15, '400 14px "Lilita One", sans-serif', '#fff');
+      text('3', cx - 50 + 15, cy - 50 + 68 + 15, '400 14px "Lilita One", sans-serif', '#fff');
+    } else if (id === 'shade') {
+      for (let i = 0; i < 16; i++) { const x = cx - 70 + (i % 8) * 18, y = cy - 36 + Math.floor(i / 8) * 18; }
+      for (let i = 0; i < 20; i++) { const x = cx - 95 + (i % 10) * 19, y = cy - 40 + Math.floor(i / 10) * 19 * 2; c.fillStyle = i === 13 ? 'hsl(200 70% 62%)' : 'hsl(200 70% 55%)'; rr(x, y + (i >= 10 ? -10 : 0), 16, 16, 4); c.fill(); }
+      for (let i = 0; i < 10; i++) { const x = cx - 95 + i * 19, y = cy + 26; c.fillStyle = 'hsl(200 70% 55%)'; rr(x, y, 16, 16, 4); c.fill(); }
+    }
+  }
+
+  // ---------- home ----------
+  function renderHome() {
+    const friendsCount = GAMES.filter(g => g.tags.includes('friends')).length;
+    const langSw = el('div', { class: 'lang', role: 'group', 'aria-label': 'Language / اللغة' },
+      el('button', { type: 'button', lang: 'en', 'aria-pressed': String(lang === 'en'), onclick: () => setLang('en') }, 'English'),
+      el('button', { type: 'button', lang: 'ar', 'aria-pressed': String(lang === 'ar'), onclick: () => setLang('ar') }, 'العربية'));
+    const chips = el('div', { class: 'chips', role: 'group', 'aria-label': T('Filter games', 'تصفية الألعاب') },
+      ...FILTERS().map(([k, label]) => el('button', { class: 'chip', type: 'button', 'aria-pressed': String(filter === k), onclick: () => { filter = k; store('pocketArcadeFilter', k); renderHome(); } }, label)));
+    const shown = GAMES.filter(g => filter === 'all' || g.tags.includes(filter));
+    const shelf = el('div', { class: 'shelf' });
+    const arts = [];
+    for (const g of shown) {
+      const cv = el('canvas', { 'aria-hidden': 'true' });
+      arts.push([cv, g]);
+      const action = g.url
+        ? el('a', { class: 'btn', href: g.url + (lang === 'ar' ? '#ar' : ''), }, T('Open ↗', 'افتح ↗'))
+        : el('button', { class: 'btn', type: 'button', onclick: () => { location.hash = g.id; } }, T('Play', 'العب'));
+      const bestLine = g.best ? (best[g.id] != null ? g.best(best[g.id]) : T('No score yet', 'لا توجد نتيجة بعد')) : T('Opens in a new tab', 'تُفتح في تبويب جديد');
+      shelf.append(el('article', { class: 'tile' },
+        el('div', { class: 'art' }, cv),
+        el('div', { class: 'body' },
+          el('h2', { text: g.name() }),
+          el('div', { class: 'tags' }, g.isNew ? el('span', { class: 'tag new', text: T('New', 'جديد') }) : null, ...g.tags.map(t => el('span', { class: 'tag' + (t === 'friends' ? ' friends' : ''), text: TAG(t) }))),
+          el('p', { text: g.blurb() }),
+          el('div', { class: 'foot' }, el('span', { class: 'best', text: bestLine }), action))));
+    }
+    app.replaceChildren(
+      el('header', { class: 'top' },
+        el('div', { class: 'brand' },
+          lang === 'ar' ? el('h1', {}, 'صالة ', el('span', { text: 'ألعاب' }), ' الجيب') : el('h1', {}, 'Pocket ', el('span', { text: 'Arcade' })),
+          el('p', { text: T('Quick games to play alone or with friends. Some are for fun, some help you learn, and some are both.', 'ألعاب سريعة تلعبها وحدك أو مع أصدقائك. بعضها للمتعة، وبعضها يعلّمك شيئًا جديدًا، وبعضها يجمع الاثنين.') })),
+        el('div', { class: 'top-side' }, langSw, el('span', { class: 'count', text: T(`${GAMES.length} games · ${friendsCount} multiplayer`, `${GAMES.length} لعبة · ${friendsCount} جماعية`) }))),
+      chips, shelf,
+      el('p', { class: 'foot-note', text: T('Comet Party, Time Thread and Orbit Keeper open as their own pages, in the language you pick here. To play with friends, share those games with them from each game’s Share menu.', 'حفلة المذنّبات وخيط الزمن وحارس المدار تُفتح كصفحات مستقلة باللغة التي تختارها هنا. لتلعب مع أصدقائك، شارك كل لعبة معهم من قائمة المشاركة (Share) الخاصة بها.') }));
+    requestAnimationFrame(() => arts.forEach(([cv, g]) => drawArt(cv, g.id, g.tile)));
+  }
+  function setLang(l) { lang = l; store('pocketArcadeLang', l); applyLang(); route(); }
+
+  // ---------- game shell ----------
+  function shell(g, stageKids, learnText) {
+    const stage = el('div', { class: 'stage' }, ...stageKids, learnText ? el('p', { class: 'learn', text: learnText }) : null);
+    app.replaceChildren(
+      el('div', { class: 'gamebar' },
+        el('button', { class: 'btn alt small', type: 'button', onclick: () => { location.hash = ''; } }, T('← All games', '→ كل الألعاب')),
+        el('h2', { text: g.name() }),
+        el('span', { class: 'best', text: best[g.id] != null ? g.best(best[g.id]) : T('No score yet', 'لا توجد نتيجة بعد') })),
+      stage);
+    return stage;
+  }
+  const keepLearn = (stage, kids) => { const learn = stage.querySelector('.learn'); stage.replaceChildren(...kids.filter(Boolean), learn); };
+
+  // ---------- Pair Up ----------
+  function pairs(g) {
+    const SYMS = ['★', '●', '▲', '■', '◆', '✚', '♥', '☾'];
+    const deck = shuffle([...SYMS, ...SYMS]);
+    let open = [], moves = 0, found = 0, lock = false, start = 0, timer = null;
+    const hudMoves = el('b', { text: '0' }), hudPairs = el('b', { text: '0/8' }), hudTime = el('b', { text: '0.0' });
+    const msg = el('p', { class: 'msg', text: T('Flip two cards. If they match, they stay face up.', 'اقلب بطاقتين. إذا تطابقتا، تبقيان مكشوفتين.') });
+    const grid = el('div', { class: 'grid pairs' });
+    const btns = deck.map((s, i) => el('button', { class: 'pcard', type: 'button', 'aria-label': T('Hidden card ', 'بطاقة مخفية ') + (i + 1), onclick: () => flip(i) }, ''));
+    grid.append(...btns);
+    function flip(i) {
+      const b = btns[i];
+      if (lock || b.classList.contains('up') || b.classList.contains('done')) return;
+      if (!start) { start = performance.now(); timer = setInterval(() => { hudTime.textContent = ((performance.now() - start) / 1000).toFixed(1); }, 100); }
+      b.classList.add('up'); b.textContent = deck[i];
+      open.push(i);
+      if (open.length === 2) {
+        moves++; hudMoves.textContent = moves;
+        const [a, c] = open;
+        if (deck[a] === deck[c]) {
+          btns[a].classList.add('done'); btns[c].classList.add('done'); found++; hudPairs.textContent = found + '/8'; open = [];
+          if (found === 8) {
+            clearInterval(timer);
+            const isBest = saveBest('pairs', moves, true);
+            msg.className = 'msg win'; msg.textContent = T(`All pairs found in ${moves} moves!`, `وجدت كل الأزواج في ${moves} محاولة!`) + (isBest ? T(' New best.', ' رقم قياسي جديد.') : '');
+          }
+        } else {
+          lock = true;
+          setTimeout(() => { for (const k of open) { btns[k].classList.remove('up'); btns[k].textContent = ''; } open = []; lock = false; }, 750);
+        }
+      }
+    }
+    shell(g, [el('div', { class: 'hud' }, el('span', {}, T('Moves ', 'المحاولات '), hudMoves), el('span', {}, T('Pairs ', 'الأزواج '), hudPairs), el('span', {}, T('Time ', 'الوقت '), hudTime)), grid, msg,
+      el('button', { class: 'btn alt small', type: 'button', onclick: () => route() }, T('New game', 'لعبة جديدة'))],
+      T('Brain tip: say each symbol and its position out loud ("star, top left"). Linking what you see with words helps you remember it.', 'نصيحة للذاكرة: قل اسم كل رمز ومكانه بصوت عالٍ ("نجمة، أعلى اليسار"). ربط ما تراه بالكلمات يساعدك على التذكّر.'));
+    cleanup = () => clearInterval(timer);
+  }
+
+  // ---------- Number Hunt ----------
+  function hunt(g) {
+    const nums = shuffle(Array.from({ length: 25 }, (_, i) => i + 1));
+    let nextN = 1, start = 0, timer = null;
+    const hudNext = el('b', { text: '1' }), hudTime = el('b', { text: '0.00' });
+    const msg = el('p', { class: 'msg', text: T('Find and tap 1, then 2, then 3… all the way to 25. The clock starts at your first tap.', 'ابحث عن 1 ثم 2 ثم 3… حتى 25 واضغط عليها بالترتيب. يبدأ الوقت مع أول ضغطة.') });
+    const grid = el('div', { class: 'grid hunt' });
+    for (const n of nums) {
+      const b = el('button', { class: 'hcell', type: 'button', text: String(n), onclick: () => {
+        if (b.classList.contains('hit')) return;
+        if (n !== nextN) { b.classList.add('miss'); setTimeout(() => b.classList.remove('miss'), 300); return; }
+        if (n === 1) { start = performance.now(); timer = setInterval(() => { hudTime.textContent = ((performance.now() - start) / 1000).toFixed(2); }, 50); }
+        b.classList.add('hit'); nextN++; hudNext.textContent = nextN > 25 ? '–' : nextN;
+        if (nextN > 25) {
+          clearInterval(timer); const ms = Math.round(performance.now() - start);
+          hudTime.textContent = (ms / 1000).toFixed(2);
+          const isBest = saveBest('hunt', ms, true);
+          msg.className = 'msg win'; msg.textContent = T(`Done in ${(ms / 1000).toFixed(2)} seconds!`, `انتهيت في ${(ms / 1000).toFixed(2)} ثانية!`) + (isBest ? T(' New best.', ' رقم قياسي جديد.') : '');
+        }
+      } });
+      grid.append(b);
+    }
+    shell(g, [el('div', { class: 'hud' }, el('span', {}, T('Find ', 'ابحث عن '), hudNext), el('span', {}, T('Time ', 'الوقت '), hudTime)), grid, msg,
+      el('button', { class: 'btn alt small', type: 'button', onclick: () => route() }, T('New grid', 'شبكة جديدة'))],
+      T('This kind of grid is called a Schulte table. People use it to train focus and peripheral vision. Keep your eyes on the centre and try to spot the numbers without moving them much.', 'تُسمّى هذه الشبكة جدول شولته، وتُستخدم لتدريب التركيز والرؤية الجانبية. ثبّت عينيك في الوسط وحاول رؤية الأرقام دون تحريكهما كثيرًا.'));
+    cleanup = () => clearInterval(timer);
+  }
+
+  // ---------- Reflex Check ----------
+  function reflex(g) {
+    const ROUNDS = 5; let times = [], state = 'idle', t0 = 0, to = null;
+    const pad = el('button', { class: 'pad idle', type: 'button', text: T('Tap to start', 'اضغط للبدء') });
+    const msg = el('p', { class: 'msg', text: T('When the box turns green, tap as fast as you can. If you tap while it’s red, that try doesn’t count.', 'عندما يتحوّل المربع إلى الأخضر، اضغط بأسرع ما يمكن. إذا ضغطت وهو أحمر، لا تُحسب المحاولة.') });
+    const list = el('div', { class: 'times' });
+    const show = () => list.replaceChildren(...times.map((t, i) => el('span', { text: `#${i + 1} ${t} ms` })));
+    function arm() {
+      state = 'wait'; pad.className = 'pad wait'; pad.textContent = T('Wait for green…', 'انتظر الأخضر…');
+      to = setTimeout(() => { state = 'go'; pad.className = 'pad go'; pad.textContent = T('TAP!', 'اضغط!'); t0 = performance.now(); }, 1200 + Math.random() * 2600);
+    }
+    function press() {
+      if (state === 'idle' || state === 'done') { times = []; show(); msg.className = 'msg'; msg.textContent = T(`Try 1 of ${ROUNDS}.`, `المحاولة 1 من ${ROUNDS}.`); arm(); }
+      else if (state === 'wait') { clearTimeout(to); state = 'early'; pad.className = 'pad'; pad.textContent = T('Too early! Tap to retry', 'مبكر جدًا! اضغط للإعادة'); }
+      else if (state === 'early') { arm(); }
+      else if (state === 'go') {
+        const ms = Math.round(performance.now() - t0); times.push(ms); show();
+        if (times.length >= ROUNDS) {
+          const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
+          const isBest = saveBest('reflex', avg, true);
+          state = 'done'; pad.className = 'pad idle'; pad.textContent = T(`${avg} ms average`, `المتوسط ${avg} مللي ثانية`);
+          msg.className = 'msg win'; msg.textContent = (avg < 250 ? T('Lightning fast! ', 'سريع كالبرق! ') : avg < 320 ? T('Nice and quick. ', 'سريع وجيد. ') : T('Not bad. ', 'ليس سيئًا. ')) + (isBest ? T('New best. ', 'رقم قياسي جديد. ') : '') + T('Tap to go again.', 'اضغط للعب مرة أخرى.');
+        } else { msg.textContent = T(`${ms} ms. Try ${times.length + 1} of ${ROUNDS}.`, `${ms} مللي ثانية. المحاولة ${times.length + 1} من ${ROUNDS}.`); arm(); }
+      }
+    }
+    pad.addEventListener('pointerdown', e => { e.preventDefault(); press(); });
+    pad.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); press(); } });
+    shell(g, [pad, list, msg], T('Most people react to something they see in about 200 to 300 milliseconds. People react to sound faster, in roughly 150 milliseconds.', 'يستجيب معظم الناس لما يرونه خلال 200 إلى 300 مللي ثانية تقريبًا. أما الاستجابة للصوت فأسرع، نحو 150 مللي ثانية.'));
+    cleanup = () => clearTimeout(to);
+  }
+
+  // ---------- Quick Sums ----------
+  function math(g) {
+    const DUR = 30; let score = 0, streak = 0, left = DUR, timer = null, running = false, cur = null;
+    const q = el('div', { class: 'q', text: T('Ready?', 'مستعد؟') });
+    const opts = el('div', { class: 'opts' });
+    const meterFill = el('i', { style: 'width:100%' });
+    const hudScore = el('b', { text: '0' }), hudTime = el('b', { text: String(DUR) });
+    const msg = el('p', { class: 'msg', text: T('Pick the right answer. Wrong answers cost 2 seconds.', 'اختر الإجابة الصحيحة. كل إجابة خاطئة تكلّفك ثانيتين.') });
+    const startBtn = el('button', { class: 'btn', type: 'button', onclick: start }, T('Start', 'ابدأ'));
+    const R = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+    function make() {
+      const lvl = Math.min(4, Math.floor(score / 5));
+      const ops = lvl < 1 ? ['+', '−'] : lvl < 2 ? ['+', '−', '×'] : ['+', '−', '×', '÷'];
+      const op = ops[R(0, ops.length - 1)];
+      let a, b, ans; const big = 10 + lvl * 15;
+      if (op === '+') { a = R(2, big); b = R(2, big); ans = a + b; }
+      else if (op === '−') { a = R(5, big + 10); b = R(1, a); ans = a - b; }
+      else if (op === '×') { a = R(2, 6 + lvl * 2); b = R(2, 9 + lvl); ans = a * b; }
+      else { b = R(2, 9 + lvl); ans = R(2, 9 + lvl); a = b * ans; }
+      const set = new Set([ans]);
+      while (set.size < 3) { const d = ans + R(-10, 10); if (d !== ans && d >= 0) set.add(d); }
+      cur = { text: `${a} ${op} ${b}`, ans, choices: shuffle([...set]) };
+      q.textContent = cur.text + ' = ?';
+      opts.replaceChildren(...cur.choices.map(c => el('button', { class: 'opt', type: 'button', text: String(c), onclick: () => pick(c) })));
+    }
+    function pick(c) {
+      if (!running) return;
+      if (c === cur.ans) { score++; streak++; hudScore.textContent = score; msg.className = 'msg'; msg.textContent = streak >= 3 ? T(`${streak} in a row!`, `${streak} على التوالي!`) : T('Correct.', 'صحيح.'); }
+      else { streak = 0; left = Math.max(0, left - 2); msg.className = 'msg'; msg.innerHTML = ''; msg.append(el('span', { class: 'ltr', text: `${cur.text} = ${cur.ans}` }), T('. Minus 2 seconds.', ' . خُصمت ثانيتان.')); }
+      make();
+    }
+    function start() {
+      score = 0; streak = 0; left = DUR; running = true; hudScore.textContent = '0'; startBtn.hidden = true; msg.className = 'msg'; msg.textContent = T('Go!', 'انطلق!');
+      make();
+      let lastT = performance.now(); clearInterval(timer);
+      timer = setInterval(() => {
+        const t = performance.now(); left -= (t - lastT) / 1000; lastT = t;
+        hudTime.textContent = Math.max(0, Math.ceil(left)); meterFill.style.width = Math.max(0, left / DUR * 100) + '%';
+        if (left <= 0) {
+          clearInterval(timer); running = false; opts.replaceChildren(); q.textContent = T(`${score} correct`, `${score} صحيحة`);
+          const isBest = saveBest('math', score, false);
+          msg.className = 'msg win'; msg.textContent = (isBest && score > 0 ? T('New best! ', 'رقم قياسي جديد! ') : '') + T('Press Start to try again.', 'اضغط ابدأ للمحاولة مرة أخرى.');
+          startBtn.hidden = false;
+        }
+      }, 100);
+    }
+    shell(g, [el('div', { class: 'hud' }, el('span', {}, T('Score ', 'النتيجة '), hudScore), el('span', {}, T('Seconds ', 'الثواني '), hudTime)), el('div', { class: 'meter' }, meterFill), q, opts, msg, startBtn],
+      T('Mental maths trick: to multiply by 9, multiply by 10 and take away the number once. For example, 9 × 7 = 70 − 7 = 63.', 'حيلة للحساب الذهني: للضرب في 9، اضرب في 10 ثم اطرح العدد مرة واحدة. مثلًا: 9 × 7 = 70 − 7 = 63.'));
+    cleanup = () => clearInterval(timer);
+  }
+
+  // ---------- Dots & Boxes ----------
+  function dots(g) {
+    const N = 4;
+    let mode = null, h, v, boxes, turn, score, last, over, botTimer = null;
+    const stage = shell(g, [], T('Strategy tip: avoid drawing the third side of a box, because it hands your opponent a free box. Near the end, try to make your opponent open up long chains.', 'نصيحة: تجنّب رسم الضلع الثالث لأي مربع، لأنك بذلك تمنح خصمك مربعًا مجانيًا. وقرب النهاية، حاول أن تجعل خصمك يفتح السلاسل الطويلة.'));
+    function setup(m) {
+      mode = m; turn = 1; score = [0, 0, 0]; last = null; over = false;
+      h = Array.from({ length: N + 1 }, () => Array(N).fill(0));
+      v = Array.from({ length: N }, () => Array(N + 1).fill(0));
+      boxes = Array.from({ length: N }, () => Array(N).fill(0));
+      draw();
+    }
+    const names = () => mode === 'bot' ? ['', T('You', 'أنت'), T('Computer', 'الكمبيوتر')] : ['', T('Player 1', 'اللاعب 1'), T('Player 2', 'اللاعب 2')];
+    const sides = (r, c) => (h[r][c] ? 1 : 0) + (h[r + 1][c] ? 1 : 0) + (v[r][c] ? 1 : 0) + (v[r][c + 1] ? 1 : 0);
+    const boxesOf = (type, r, c) => type === 'h' ? [[r - 1, c], [r, c]].filter(([a]) => a >= 0 && a < N) : [[r, c - 1], [r, c]].filter(([, b]) => b >= 0 && b < N);
+    function play(type, r, c) {
+      if (over) return;
+      const arr = type === 'h' ? h : v;
+      if (arr[r][c]) return;
+      arr[r][c] = turn; last = type + r + '-' + c;
+      let made = 0;
+      for (const [a, b] of boxesOf(type, r, c)) if (!boxes[a][b] && sides(a, b) === 4) { boxes[a][b] = turn; score[turn]++; made++; }
+      if (!made) turn = 3 - turn;
+      if (score[1] + score[2] === N * N) {
+        over = true;
+        if (mode === 'bot' && score[1] > score[2]) { best.dots = (best.dots || 0) + 1; store('pocketArcade', best); }
+      }
+      draw();
+      if (!over && mode === 'bot' && turn === 2) botTimer = setTimeout(botMove, 450);
+    }
+    function botMove() {
+      const moves = [];
+      for (let r = 0; r <= N; r++) for (let c = 0; c < N; c++) if (!h[r][c]) moves.push(['h', r, c]);
+      for (let r = 0; r < N; r++) for (let c = 0; c <= N; c++) if (!v[r][c]) moves.push(['v', r, c]);
+      const gives = m => boxesOf(m[0], m[1], m[2]).some(([a, b]) => sides(a, b) === 2);
+      const takes = m => boxesOf(m[0], m[1], m[2]).some(([a, b]) => sides(a, b) === 3);
+      const pick = moves.find(takes) || shuffle(moves.filter(m => !gives(m)))[0] || shuffle(moves.slice())[0];
+      if (pick) play(...pick);
+    }
+    function draw() {
+      const kids = [];
+      if (!mode) {
+        kids.push(el('p', { class: 'msg', text: T('Choose how to play.', 'اختر طريقة اللعب.') }),
+          el('div', { class: 'modes' },
+            el('button', { class: 'btn', type: 'button', onclick: () => setup('bot') }, T('Play the computer', 'العب ضد الكمبيوتر')),
+            el('button', { class: 'btn alt', type: 'button', onclick: () => setup('two') }, T('2 players, one device', 'لاعبان على جهاز واحد'))));
+      } else {
+        const nm = names();
+        kids.push(el('div', { class: 'score2' },
+          el('span', { class: 'p1' + (turn === 1 && !over ? ' turn' : ''), text: `${nm[1]}: ${score[1]}` }),
+          el('span', { class: 'p2' + (turn === 2 && !over ? ' turn' : ''), text: `${nm[2]}: ${score[2]}` })));
+        const grid = el('div', { class: 'dots' });
+        const locked = over || (mode === 'bot' && turn === 2);
+        for (let R = 0; R <= 2 * N; R++) for (let C = 0; C <= 2 * N; C++) {
+          if (R % 2 === 0 && C % 2 === 0) grid.append(el('span', { class: 'dot' }));
+          else if (R % 2 === 0) { const r = R / 2, c = (C - 1) / 2, o = h[r][c]; grid.append(el('button', { class: 'ln' + (o ? ' p' + o : '') + (last === 'h' + r + '-' + c ? ' last' : ''), type: 'button', disabled: !!o || locked, 'aria-label': T('Line', 'خط'), onclick: () => play('h', r, c) })); }
+          else if (C % 2 === 0) { const r = (R - 1) / 2, c = C / 2, o = v[r][c]; grid.append(el('button', { class: 'ln' + (o ? ' p' + o : '') + (last === 'v' + r + '-' + c ? ' last' : ''), type: 'button', disabled: !!o || locked, 'aria-label': T('Line', 'خط'), onclick: () => play('v', r, c) })); }
+          else { const o = boxes[(R - 1) / 2][(C - 1) / 2]; grid.append(el('span', { class: 'bx' + (o ? ' p' + o : ''), text: o ? String(o) : '' })); }
+        }
+        kids.push(grid);
+        let msgText;
+        if (over) {
+          if (score[1] === score[2]) msgText = T('It’s a draw!', 'تعادل!');
+          else { const w = score[1] > score[2] ? 1 : 2; msgText = mode === 'bot' ? (w === 1 ? T('You win!', 'لقد فزت!') : T('The computer wins!', 'فاز الكمبيوتر!')) : T(`${nm[w]} wins!`, `فاز ${nm[w]}!`); }
+        } else msgText = mode === 'bot' && turn === 2 ? T('Computer is thinking…', 'الكمبيوتر يفكّر…') : T(`${nm[turn]}, draw a line.`, `${nm[turn]}، ارسم خطًا.`);
+        kids.push(el('p', { class: 'msg' + (over ? ' win' : ''), text: msgText }),
+          el('div', { class: 'modes' },
+            el('button', { class: 'btn alt small', type: 'button', onclick: () => { clearTimeout(botTimer); setup(mode); } }, T('Restart', 'إعادة')),
+            el('button', { class: 'btn alt small', type: 'button', onclick: () => { clearTimeout(botTimer); mode = null; draw(); } }, T('Change mode', 'تغيير الطريقة'))));
+      }
+      keepLearn(stage, kids);
+    }
+    draw();
+    cleanup = () => clearTimeout(botTimer);
+  }
+
+  // ---------- Word Scramble ----------
+  const WORDS_EN = [
+    ['planet', 'A large body that travels around a star.'], ['oxygen', 'The gas we need to breathe; its symbol is O.'], ['volcano', 'A mountain that can erupt with lava and ash.'],
+    ['galaxy', 'A huge system of stars; ours is the Milky Way.'], ['magnet', 'An object that pulls iron towards it.'], ['island', 'Land with water all around it.'],
+    ['fossil', 'Remains of an ancient living thing preserved in rock.'], ['climate', 'The usual weather of a place over many years.'], ['gravity', 'The force that pulls things towards the ground.'],
+    ['pixel', 'One tiny dot of colour on a screen.'], ['orbit', 'The curved path of one object around another.'], ['desert', 'A very dry place with little rain.'],
+    ['habitat', 'The natural home of an animal or plant.'], ['glacier', 'A slow-moving river of ice.'], ['atom', 'The tiny building block of all matter.'],
+    ['energy', 'The power to do work or make things move.'], ['comet', 'A ball of ice and dust with a glowing tail.'], ['canyon', 'A deep valley with steep sides.'],
+    ['virus', 'A tiny germ that can only multiply inside living cells.'], ['coral', 'Tiny sea animals that build reefs.'], ['matrix', 'A grid of numbers in rows and columns.'],
+    ['signal', 'A message sent by sound, light or radio waves.'], ['robot', 'A machine that can carry out tasks by itself.'], ['puzzle', 'A problem or game that tests your thinking.'],
+    ['meteor', 'A space rock that glows as it falls through the air.'], ['jungle', 'A thick tropical forest.'], ['eclipse', 'When one object in space blocks the light of another.'],
+    ['spiral', 'A curve that winds around a centre point.'], ['rocket', 'A vehicle pushed into space by burning fuel.'], ['protein', 'A nutrient your body uses to build muscle.'],
+  ];
+  const WORDS_AR = [
+    ['كوكب', 'جسم كبير يدور حول نجم.'], ['بركان', 'جبل قد يثور ويقذف الحمم والرماد.'], ['مجرة', 'نظام هائل من النجوم، ومجرتنا هي درب التبانة.'],
+    ['جزيرة', 'أرض يحيط بها الماء من كل جانب.'], ['مناخ', 'حالة الطقس المعتادة في مكان ما على مدى سنوات طويلة.'], ['جاذبية', 'القوة التي تشد الأشياء نحو الأرض.'],
+    ['صحراء', 'مكان جاف جدًا قليل المطر.'], ['مذنب', 'كرة من الجليد والغبار لها ذيل مضيء.'], ['طاقة', 'القدرة على القيام بعمل أو تحريك الأشياء.'],
+    ['مغناطيس', 'جسم يجذب الحديد نحوه.'], ['روبوت', 'آلة تستطيع أداء المهام بنفسها.'], ['محيط', 'مسطح مائي مالح وواسع جدًا.'],
+    ['شمس', 'النجم الذي تدور حوله الأرض.'], ['غابة', 'مكان كثيف الأشجار.'], ['كسوف', 'عندما يحجب القمر ضوء الشمس عن الأرض.'],
+    ['لغز', 'مسألة أو لعبة تختبر تفكيرك.'], ['حاسوب', 'جهاز يعالج المعلومات وينفّذ البرامج.'], ['نجمة', 'كرة ضخمة من الغاز المشتعل تبعث الضوء.'],
+    ['زلزال', 'اهتزاز مفاجئ لسطح الأرض.'], ['نهر', 'مجرى ماء عذب يجري نحو البحر.'], ['فضاء', 'المكان الواسع خارج الغلاف الجوي للأرض.'],
+    ['قمر', 'جسم يدور حول كوكب، مثل قمر الأرض.'], ['صاروخ', 'مركبة تنطلق إلى الفضاء بقوة احتراق الوقود.'], ['مكتبة', 'مكان تُحفظ فيه الكتب للقراءة والاستعارة.'],
+    ['عاصفة', 'رياح قوية قد يرافقها مطر أو رعد.'], ['دماغ', 'العضو الذي نفكّر ونتذكّر به.'], ['ذرة', 'أصغر وحدة بناء للمادة.'],
+    ['سحابة', 'تجمّع من قطرات الماء الصغيرة في السماء.'], ['شلال', 'ماء يسقط من مكان مرتفع.'], ['قلب', 'العضو الذي يضخ الدم في الجسم.'],
+  ];
+  const normAr = s => s.replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/\s+/g, '');
+  function words(g) {
+    const LIST = lang === 'ar' ? WORDS_AR : WORDS_EN;
+    const norm = s => lang === 'ar' ? normAr(s.trim()) : s.trim().toLowerCase();
+    const DUR = 60; let left = DUR, score = 0, timer = null, running = false, cur = null, order = [], oi = 0;
+    const tiles = el('div', { class: 'letters' });
+    const hintP = el('p', { class: 'hint', text: T('Press Start, then type the word.', 'اضغط ابدأ ثم اكتب الكلمة.') });
+    const input = el('input', { type: 'text', id: 'wordIn', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': T('Your answer', 'إجابتك'), disabled: true });
+    const hudScore = el('b', { text: '0' }), hudTime = el('b', { text: String(DUR) });
+    const msg = el('p', { class: 'msg', text: T('Skipping costs 3 seconds.', 'التخطي يكلّفك 3 ثوانٍ.') });
+    const startBtn = el('button', { class: 'btn', type: 'button', onclick: start }, T('Start', 'ابدأ'));
+    const skipBtn = el('button', { class: 'btn alt small', type: 'button', disabled: true, onclick: () => { if (!running) return; left = Math.max(0, left - 3); msg.className = 'msg'; msg.textContent = T(`It was "${cur[0].toUpperCase()}".`, `كانت الكلمة «${cur[0]}».`); next(); } }, T('Skip', 'تخطَّ'));
+    const scramble = w => { const ch = [...w]; let s, tries = 0; do { s = shuffle(ch.slice()).join(''); } while (s === w && ++tries < 20); return s; };
+    function next() {
+      if (oi >= order.length) { order = shuffle(LIST.map((_, i) => i)); oi = 0; }
+      cur = LIST[order[oi++]];
+      tiles.replaceChildren(...[...scramble(cur[0])].map(ch => el('span', { text: ch })));
+      hintP.textContent = T('Meaning: ', 'المعنى: ') + cur[1];
+      input.value = ''; input.focus();
+    }
+    input.addEventListener('input', () => {
+      if (!running) return;
+      if (norm(input.value) === norm(cur[0])) { score++; hudScore.textContent = score; msg.className = 'msg win'; msg.textContent = T(`Yes, "${cur[0].toUpperCase()}"!`, `أحسنت، «${cur[0]}»!`); next(); }
+    });
+    function start() {
+      score = 0; left = DUR; running = true; hudScore.textContent = '0'; startBtn.hidden = true; input.disabled = false; skipBtn.disabled = false;
+      order = shuffle(LIST.map((_, i) => i)); oi = 0; next();
+      let lastT = performance.now(); clearInterval(timer);
+      timer = setInterval(() => {
+        const t = performance.now(); left -= (t - lastT) / 1000; lastT = t;
+        hudTime.textContent = Math.max(0, Math.ceil(left));
+        if (left <= 0) {
+          clearInterval(timer); running = false; input.disabled = true; skipBtn.disabled = true;
+          const isBest = saveBest('words', score, false);
+          tiles.replaceChildren();
+          hintP.textContent = T(`Time! You unscrambled ${score} word${score === 1 ? '' : 's'}. The last one was "${cur[0].toUpperCase()}".`, `انتهى الوقت! رتّبت ${score} كلمة. الكلمة الأخيرة كانت «${cur[0]}».`);
+          msg.className = 'msg win'; msg.textContent = (isBest && score > 0 ? T('New best! ', 'رقم قياسي جديد! ') : '') + T('Press Start to play again.', 'اضغط ابدأ للعب مرة أخرى.');
+          startBtn.hidden = false;
+        }
+      }, 100);
+    }
+    shell(g, [el('div', { class: 'hud' }, el('span', {}, T('Words ', 'الكلمات '), hudScore), el('span', {}, T('Seconds ', 'الثواني '), hudTime)), tiles, hintP,
+      el('div', { class: 'wordform' }, input, skipBtn), msg, startBtn],
+      T('Word tip: look for common letter pairs first, like "TH", "ER" or "ING". Then build the rest of the word around them.', 'نصيحة: ابحث أولًا عن حروف تأتي معًا كثيرًا، مثل «ال» أو «ة» في آخر الكلمة، ثم ابنِ بقية الكلمة حولها.'));
+    cleanup = () => clearInterval(timer);
+  }
+
+  // ---------- Lock Pick ----------
+  function lock(g) {
+    const MAX = 10;
+    const secret = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 4);
+    let entry = [], history = [], over = false;
+    const stage = shell(g, [], T('Logic tip: this is a game of deduction. Try a first guess like 0123 and a second like 4567. Together they tell you which digits are in the code.', 'نصيحة منطقية: هذه لعبة استنتاج. جرّب أولًا 0123 ثم 4567، وستعرف من النتيجتين معًا أي الأرقام موجودة في الرمز.'));
+    function submit() {
+      if (entry.length < 4 || over) return;
+      const hits = entry.filter((d, i) => secret[i] === d).length;
+      const near = entry.filter((d, i) => secret[i] !== d && secret.includes(d)).length;
+      history.push({ g: entry.slice(), hits, near });
+      entry = [];
+      if (hits === 4) { over = 'win'; saveBest('lock', history.length, true); }
+      else if (history.length >= MAX) over = 'lose';
+      draw();
+    }
+    function draw() {
+      const rows = el('div', { class: 'guesses' }, ...history.map((hh, i) => el('div', { class: 'grow' },
+        el('span', { class: 'n', text: '#' + (i + 1) }),
+        ...hh.g.map((d, k) => el('span', { class: 'd' + (secret[k] === d ? ' hit' : secret.includes(d) ? ' near' : ''), text: String(d) })),
+        el('span', { class: 'fb', text: T(`${hh.hits} right · ${hh.near} moved`, `${hh.hits} صحيح · ${hh.near} في مكان آخر`) }))));
+      const slots = el('div', { class: 'entry', 'aria-live': 'polite' }, ...[0, 1, 2, 3].map(i => el('span', { text: entry[i] != null ? String(entry[i]) : '' })));
+      const pad = el('div', { class: 'keypad' }, ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(d => el('button', { class: 'key', type: 'button', text: String(d), disabled: !!over || entry.includes(d) || entry.length >= 4, onclick: () => { entry.push(d); draw(); } })));
+      const n = history.length;
+      const msg = over === 'win' ? T(`Unlocked in ${n} guess${n === 1 ? '' : 'es'}!`, `فتحت القفل في ${n} محاولة!`)
+        : over === 'lose' ? T(`Out of guesses. The code was ${secret.join('')}.`, `انتهت المحاولات. الرمز كان ${secret.join('')}.`)
+        : T(`Guess ${n + 1} of ${MAX}. The code has 4 different digits.`, `المحاولة ${n + 1} من ${MAX}. الرمز مكوّن من 4 أرقام مختلفة.`);
+      const controls = over ? el('div', { class: 'modes' }, el('button', { class: 'btn', type: 'button', onclick: () => route() }, T('New code', 'رمز جديد')))
+        : el('div', { class: 'modes' },
+          el('button', { class: 'btn alt small', type: 'button', disabled: !entry.length, onclick: () => { entry.pop(); draw(); } }, T('Delete', 'حذف')),
+          el('button', { class: 'btn', type: 'button', disabled: entry.length < 4, onclick: submit }, T('Try code', 'جرّب الرمز')));
+      keepLearn(stage, [
+        el('div', { class: 'legend2' }, el('span', {}, el('i', { style: 'background:var(--good)' }), T('right digit, right spot', 'رقم صحيح في مكانه')), el('span', {}, el('i', { style: 'background:var(--warn)' }), T('in the code, wrong spot', 'موجود لكن في مكان آخر'))),
+        rows, slots, el('p', { class: 'msg' + (over === 'win' ? ' win' : ''), text: msg }), pad, controls]);
+    }
+    const onKey = e => {
+      if (over) return;
+      if (/^[0-9]$/.test(e.key) && entry.length < 4 && !entry.includes(+e.key)) { entry.push(+e.key); draw(); }
+      else if (e.key === 'Backspace' && entry.length) { entry.pop(); draw(); }
+      else if (e.key === 'Enter') submit();
+    };
+    addEventListener('keydown', onKey);
+    draw();
+    cleanup = () => removeEventListener('keydown', onKey);
+  }
+
+  // ---------- Bigger or Smaller ----------
+  const FACTS = {
+    height: { q: () => T('Which is taller?', 'أيهما أطول؟'), unit: () => T('m', 'م'), items: [['Burj Khalifa', 'برج خليفة', 828], ['Shanghai Tower', 'برج شنغهاي', 632], ['Taipei 101', 'برج تايبيه 101', 508], ['Petronas Towers', 'برجا بتروناس', 452], ['Empire State Building', 'مبنى إمباير ستيت', 443], ['Eiffel Tower', 'برج إيفل', 330], ['Space Needle', 'برج سبيس نيدل', 184], ['Great Pyramid of Giza', 'الهرم الأكبر في الجيزة', 139], ['Big Ben’s tower', 'برج ساعة بيغ بن', 96], ['Statue of Liberty (with base)', 'تمثال الحرية (مع القاعدة)', 93], ['Leaning Tower of Pisa', 'برج بيزا المائل', 56]] },
+    mountain: { q: () => T('Which mountain is higher?', 'أي الجبلين أعلى؟'), unit: () => T('m', 'م'), items: [['Mount Everest', 'جبل إيفرست', 8849], ['K2', 'جبل كي 2', 8611], ['Aconcagua', 'جبل أكونكاغوا', 6961], ['Denali', 'جبل دينالي', 6190], ['Kilimanjaro', 'جبل كليمنجارو', 5895], ['Mont Blanc', 'جبل مون بلان', 4806], ['Mount Fuji', 'جبل فوجي', 3776], ['Ben Nevis', 'جبل بن نيفيس', 1345]] },
+    planet: { q: () => T('Which is wider?', 'أيهما أعرض؟'), unit: () => T('km across', 'كم عرضًا'), items: [['Jupiter', 'المشتري', 139820], ['Saturn', 'زحل', 116460], ['Uranus', 'أورانوس', 50724], ['Neptune', 'نبتون', 49244], ['Earth', 'الأرض', 12742], ['Venus', 'الزهرة', 12104], ['Mars', 'المريخ', 6779], ['Mercury', 'عطارد', 4879], ['The Moon', 'القمر', 3474]] },
+  };
+  function bigger(g) {
+    let streak = 0, cur = null, answered = false;
+    const stage = shell(g, [], T('Did you know? Jupiter is so wide that about 11 Earths would fit across it, side by side.', 'هل تعلم؟ المشتري عريض جدًا لدرجة أن نحو 11 كوكبًا بحجم الأرض يمكن أن تصطف على عرضه جنبًا إلى جنب.'));
+    const fmt = n => n.toLocaleString('en-US');
+    const nameOf = it => T(it[0], it[1]);
+    function make() {
+      const keys = Object.keys(FACTS), cat = FACTS[keys[Math.floor(Math.random() * keys.length)]];
+      let a, b;
+      do { [a, b] = shuffle(cat.items.slice()).slice(0, 2); } while (Math.abs(a[2] - b[2]) / Math.max(a[2], b[2]) < 0.04);
+      cur = { cat, a, b }; answered = false; draw();
+    }
+    function choose(side) {
+      if (answered) return; answered = side;
+      const pickV = side === 'l' ? cur.a[2] : cur.b[2], otherV = side === 'l' ? cur.b[2] : cur.a[2];
+      cur.ok = pickV > otherV;
+      if (cur.ok) { streak++; saveBest('bigger', streak, false); } else streak = 0;
+      draw();
+    }
+    function draw() {
+      const { cat, a, b } = cur;
+      const sideEl = (it, cls) => {
+        const other = cls === 'l' ? b : a;
+        return el('button', { class: 'side ' + cls + (answered ? (it[2] > other[2] ? ' right' : (answered === cls ? ' wrong' : '')) : ''), type: 'button', disabled: !!answered, onclick: () => choose(cls) },
+          el('h3', { text: nameOf(it) }), el('span', { class: 'val', text: answered ? `${fmt(it[2])} ${cat.unit()}` : T('Tap to choose', 'اضغط للاختيار') }));
+      };
+      const ratio = Math.max(a[2], b[2]) / Math.min(a[2], b[2]);
+      const howMuch = ratio < 1.95 ? T(`about ${Math.round((ratio - 1) * 100)}% bigger`, `أكبر بنحو ${Math.round((ratio - 1) * 100)}٪`) : T(`about ${ratio.toFixed(1)} times bigger`, `أكبر بنحو ${ratio.toFixed(1)} مرة`);
+      keepLearn(stage, [
+        el('div', { class: 'hud' }, el('span', {}, T('Streak ', 'السلسلة '), el('b', { text: String(streak) })), el('span', {}, T('Best ', 'الأفضل '), el('b', { text: String(best.bigger || 0) }))),
+        el('p', { class: 'hint', style: 'font:700 26px var(--font-display)', text: cat.q() }),
+        el('div', { class: 'vs' }, sideEl(a, 'l'), el('span', { class: 'or2', text: T('or', 'أم') }), sideEl(b, 'r')),
+        el('p', { class: 'msg' + (answered && cur.ok ? ' win' : ''), text: !answered ? T('Pick one.', 'اختر واحدًا.') : (cur.ok ? T('Correct! ', 'صحيح! ') : T('Not this time. ', 'ليس هذه المرة. ')) + T(`The bigger one is ${howMuch}.`, `الأكبر ${howMuch}.`) }),
+        answered ? el('button', { class: 'btn', type: 'button', id: 'nextQ', onclick: make }, T('Next', 'التالي')) : null]);
+      if (answered) { const n = document.getElementById('nextQ'); if (n) n.focus(); }
+    }
+    make();
+  }
+
+  // ---------- Colour Clash (Stroop) ----------
+  function stroop(g) {
+    const COLS = [
+      { key: 'red', en: 'RED', ar: 'أحمر', c: '#e5384f' }, { key: 'blue', en: 'BLUE', ar: 'أزرق', c: '#1f7aff' },
+      { key: 'green', en: 'GREEN', ar: 'أخضر', c: '#14a46c' }, { key: 'yellow', en: 'YELLOW', ar: 'أصفر', c: '#e0a100' },
+    ];
+    const DUR = 30; let score = 0, left = DUR, timer = null, running = false, cur = null;
+    const word = el('div', { class: 'cword', text: T('Ready?', 'مستعد؟') });
+    const hudScore = el('b', { text: '0' }), hudTime = el('b', { text: String(DUR) });
+    const msg = el('p', { class: 'msg', text: T('Tap the button that matches the colour of the ink. Ignore what the word says. Wrong answers cost 2 seconds.', 'اضغط على الزر الذي يطابق لون الحبر، وتجاهل معنى الكلمة. كل خطأ يكلّفك ثانيتين.') });
+    const btns = el('div', { class: 'cbtns' }, ...COLS.map(col => el('button', { class: 'cbtn', type: 'button', style: `background:${col.c}`, text: T(col.en, col.ar), onclick: () => pick(col.key) })));
+    const startBtn = el('button', { class: 'btn', type: 'button', onclick: start }, T('Start', 'ابدأ'));
+    function make() {
+      const w = COLS[Math.floor(Math.random() * 4)];
+      let ink = w; if (Math.random() < 0.8) { do { ink = COLS[Math.floor(Math.random() * 4)]; } while (ink === w); }
+      cur = { ink: ink.key }; word.textContent = T(w.en, w.ar); word.style.color = ink.c;
+    }
+    function pick(k) {
+      if (!running) return;
+      if (k === cur.ink) { score++; hudScore.textContent = score; msg.className = 'msg'; msg.textContent = T('Correct.', 'صحيح.'); }
+      else { left = Math.max(0, left - 2); msg.className = 'msg'; msg.textContent = T('That was the word, not the ink. Minus 2 seconds.', 'هذه هي الكلمة وليس لون الحبر. خُصمت ثانيتان.'); }
+      make();
+    }
+    function start() {
+      score = 0; left = DUR; running = true; hudScore.textContent = '0'; startBtn.hidden = true; msg.className = 'msg'; msg.textContent = T('Go!', 'انطلق!');
+      make();
+      let lastT = performance.now(); clearInterval(timer);
+      timer = setInterval(() => {
+        const t = performance.now(); left -= (t - lastT) / 1000; lastT = t;
+        hudTime.textContent = Math.max(0, Math.ceil(left));
+        if (left <= 0) {
+          clearInterval(timer); running = false; word.style.color = ''; word.textContent = T(`${score} correct`, `${score} صحيحة`);
+          const isBest = saveBest('stroop', score, false);
+          msg.className = 'msg win'; msg.textContent = (isBest && score > 0 ? T('New best! ', 'رقم قياسي جديد! ') : '') + T('Press Start to try again.', 'اضغط ابدأ للمحاولة مرة أخرى.');
+          startBtn.hidden = false;
+        }
+      }, 100);
+    }
+    shell(g, [el('div', { class: 'hud' }, el('span', {}, T('Score ', 'النتيجة '), hudScore), el('span', {}, T('Seconds ', 'الثواني '), hudTime)), word, btns, msg, startBtn],
+      T('This is the Stroop effect, discovered by John Ridley Stroop in 1935. Your brain reads words automatically, so naming the ink colour takes extra effort when the word says a different colour.', 'هذا ما يُعرف بتأثير ستروب، الذي اكتشفه جون ريدلي ستروب عام 1935. دماغك يقرأ الكلمات تلقائيًا، لذلك يحتاج إلى جهد إضافي لتسمية لون الحبر عندما تشير الكلمة إلى لون آخر.'));
+    cleanup = () => clearInterval(timer);
+  }
+
+  // ---------- Pattern Recall ----------
+  function recall(g) {
+    let seq = [], pos = 0, accepting = false, timers = [];
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    const hudLen = el('b', { text: '0' });
+    const msg = el('p', { class: 'msg', text: T('Press Start and watch which squares light up.', 'اضغط ابدأ وراقب المربعات التي تضيء.') });
+    const cells = Array.from({ length: 9 }, (_, i) => el('button', { class: 'rcell', type: 'button', disabled: true, 'aria-label': T('Square ', 'مربع ') + (i + 1), onclick: () => tap(i) }));
+    const grid = el('div', { class: 'grid recall' }, ...cells);
+    const startBtn = el('button', { class: 'btn', type: 'button', onclick: () => { seq = []; startBtn.hidden = true; round(); } }, T('Start', 'ابدأ'));
+    const flash = (i, ms = 380) => { cells[i].classList.add('lit'); later(() => cells[i].classList.remove('lit'), ms); };
+    function round() {
+      seq.push(Math.floor(Math.random() * 9)); pos = 0; accepting = false; hudLen.textContent = seq.length;
+      cells.forEach(c => { c.disabled = true; });
+      msg.className = 'msg'; msg.textContent = T('Watch…', 'راقب…');
+      const gap = Math.max(300, 620 - seq.length * 20);
+      seq.forEach((i, k) => later(() => flash(i, gap * 0.65), 500 + k * gap));
+      later(() => { accepting = true; cells.forEach(c => { c.disabled = false; }); msg.textContent = T('Your turn. Repeat the pattern.', 'دورك. أعِد النمط.'); }, 500 + seq.length * gap);
+    }
+    function tap(i) {
+      if (!accepting) return;
+      if (i === seq[pos]) {
+        flash(i, 200); pos++;
+        if (pos === seq.length) { accepting = false; saveBest('recall', seq.length, false); msg.className = 'msg win'; msg.textContent = T('Correct! One more step…', 'صحيح! خطوة إضافية…'); later(round, 800); }
+      } else {
+        accepting = false; cells[i].classList.add('bad'); cells[seq[pos]].classList.add('lit');
+        later(() => { cells[i].classList.remove('bad'); cells[seq[pos]].classList.remove('lit'); }, 900);
+        const got = seq.length - 1;
+        msg.className = 'msg'; msg.textContent = T(`Oops! You remembered ${got} step${got === 1 ? '' : 's'}.`, `أخطأت! تذكّرت ${got} خطوات.`);
+        cells.forEach(c => { c.disabled = true; }); startBtn.hidden = false; startBtn.textContent = T('Play again', 'العب مرة أخرى');
+      }
+    }
+    shell(g, [el('div', { class: 'hud' }, el('span', {}, T('Pattern length ', 'طول النمط '), hudLen)), grid, msg, startBtn],
+      T('Most people can hold about 4 to 7 items in their short-term memory at once. Grouping the steps into chunks, like "top row, then corner", helps you remember more.', 'يستطيع معظم الناس الاحتفاظ بنحو 4 إلى 7 عناصر في الذاكرة القصيرة في الوقت نفسه. تجميع الخطوات في مجموعات، مثل «الصف العلوي ثم الزاوية»، يساعدك على تذكّر المزيد.'));
+    cleanup = () => timers.forEach(clearTimeout);
+  }
+
+  // ---------- Odd Shade ----------
+  function shade(g) {
+    let level = 1, lives = 3, over = false, odd = 0, t = null;
+    const stage = shell(g, [], T('Your eyes have about 6 million cone cells for seeing colour. Most people can tell apart around a million shades. How small a difference can you spot?', 'تحتوي عيناك على نحو 6 ملايين خلية مخروطية لرؤية الألوان، ويستطيع معظم الناس التمييز بين نحو مليون درجة لونية. ما أصغر فرق يمكنك ملاحظته؟'));
+    function draw(reveal) {
+      const n = Math.min(7, 2 + Math.ceil(level / 3));
+      const hue = Math.floor(Math.random() * 360), sat = 55 + Math.floor(Math.random() * 25), light = 45 + Math.floor(Math.random() * 15);
+      const diff = Math.max(2.5, 18 - level * 1.1);
+      if (!reveal) odd = Math.floor(Math.random() * n * n);
+      const grid = el('div', { class: 'grid shade', style: `grid-template-columns:repeat(${n},1fr)` });
+      for (let i = 0; i < n * n; i++) {
+        const b = el('button', { class: 'scell' + (reveal && i === odd ? ' reveal' : ''), type: 'button', 'aria-label': T('Square', 'مربع'), style: `background:hsl(${hue} ${sat}% ${i === odd ? light + diff : light}%)`, disabled: over, onclick: () => pick(i) });
+        grid.append(b);
+      }
+      keepLearn(stage, [
+        el('div', { class: 'hud' }, el('span', {}, T('Level ', 'المستوى '), el('b', { text: String(level) })), el('span', {}, T('Lives ', 'المحاولات '), el('b', { text: '♥'.repeat(lives) + '♡'.repeat(3 - lives) }))),
+        grid,
+        el('p', { class: 'msg' + (over ? ' win' : ''), text: over ? T(`Game over at level ${level}.`, `انتهت اللعبة عند المستوى ${level}.`) : T('Tap the square that looks different.', 'اضغط على المربع المختلف.') }),
+        over ? el('button', { class: 'btn', type: 'button', onclick: () => route() }, T('Play again', 'العب مرة أخرى')) : null]);
+    }
+    function pick(i) {
+      if (over) return;
+      if (i === odd) { level++; saveBest('shade', level, false); draw(); }
+      else {
+        lives--;
+        if (lives <= 0) { over = true; draw(true); }
+        else { draw(); }
+      }
+    }
+    draw();
+    cleanup = () => clearTimeout(t);
+  }
+
+  const PLAY = { pairs, hunt, reflex, math, dots, words, lock, bigger, stroop, recall, shade };
+  function route() {
+    if (cleanup) { cleanup(); cleanup = null; }
+    const id = (location.hash || '').replace('#', '');
+    const g = GAMES.find(x => x.id === id && PLAY[x.id]);
+    if (g) { PLAY[g.id](g); window.scrollTo(0, 0); } else renderHome();
+  }
+  addEventListener('hashchange', route);
+  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!location.hash) renderHome(); }, 200); });
+  route();
+})();
+</script>
+
+</body>
+</html>

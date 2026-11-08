@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Orbit Keeper</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=IBM+Plex+Mono:wght@400;600&family=Cairo:wght@500;700;900&display=swap">
+<style>
+/* Layout: full-bleed canvas instrument; thin HUD strip on top, nova control at the bottom, briefing card centered over the live demo */
+:root {
+  --void: #0a1022;
+  --void-2: #121a33;
+  --ink: #e6ecfb;
+  --dim: #8592b5;
+  --shield: #9fe7ff;
+  --threat: #ff6b5a;
+  --gift: #ffc857;
+  --core: #ffb347;
+  --font-display: 'Michroma', 'Eurostile', 'Trebuchet MS', sans-serif;
+  --font-ui: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color-scheme: dark;
+}
+:root[lang="ar"] { --font-display: 'Cairo', 'Segoe UI', Tahoma, sans-serif; --font-ui: 'Cairo', 'Segoe UI', Tahoma, sans-serif; }
+:root[lang="ar"] .card h1, :root[lang="ar"] .card h2 { font-weight: 900; letter-spacing: 0; }
+:root[lang="ar"] .eyebrow, :root[lang="ar"] .hud .label, :root[lang="ar"] .primary, :root[lang="ar"] .iconbtn, :root[lang="ar"] .nova, :root[lang="ar"] .stats span { letter-spacing: 0; }
+:root[lang="ar"] .card p, :root[lang="ar"] .legend { line-height: 1.8; }
+html, body { height: 100%; }
+body {
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  overflow: hidden;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  -webkit-user-select: none; user-select: none;
+}
+canvas#game { position: fixed; inset: 0; display: block; touch-action: none; cursor: crosshair; }
+
+.hud {
+  position: fixed; top: 0; left: 0; right: 0;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  pointer-events: none; font-variant-numeric: tabular-nums;
+}
+.hud .group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hud .label { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
+.hud .score { font-family: var(--font-display); font-size: clamp(20px, 4vw, 28px); line-height: 1; }
+.hud .combo { font-size: 13px; color: var(--shield); min-height: 1.2em; }
+.hud .center { align-items: center; text-align: center; }
+.hud .right { align-items: flex-end; text-align: right; }
+.hull { display: flex; gap: 5px; }
+.hull i { width: 18px; height: 6px; border-radius: 1px; background: var(--core); transition: background .2s, opacity .2s; }
+.hull i.off { background: var(--void-2); outline: 1px solid rgba(133,146,181,.4); }
+.hud .buttons { display: flex; gap: 6px; pointer-events: auto; margin-top: 4px; }
+.iconbtn {
+  font: 600 11px var(--font-ui); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--dim); background: transparent; border: 1px solid rgba(133,146,181,.35);
+  border-radius: 3px; padding: 5px 8px; cursor: pointer;
+}
+.iconbtn:hover { color: var(--ink); border-color: var(--shield); }
+button:focus-visible { outline: 2px solid var(--shield); outline-offset: 2px; }
+
+.nova {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  width: min(240px, 60vw); height: 40px;
+  font: 600 12px var(--font-ui); letter-spacing: .22em; text-transform: uppercase;
+  color: var(--dim); background: var(--void-2); border: 1px solid rgba(255,200,87,.35);
+  border-radius: 3px; cursor: pointer; overflow: hidden;
+}
+.nova .fill { position: absolute; inset: 0 auto 0 0; width: 0%; background: rgba(255,200,87,.22); transition: width .2s; }
+.nova span { position: relative; }
+.nova.ready { color: var(--void); background: var(--gift); border-color: var(--gift); animation: ready 1s ease-in-out infinite alternate; }
+.nova.ready .fill { display: none; }
+@keyframes ready { from { box-shadow: 0 0 0 0 rgba(255,200,87,.5); } to { box-shadow: 0 0 22px 2px rgba(255,200,87,.55); } }
+
+.overlay {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px; pointer-events: none;
+}
+.card {
+  pointer-events: auto; width: min(440px, 100%);
+  background: rgba(10,16,34,.82); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(159,231,255,.22); border-radius: 4px;
+  padding: 26px 24px 22px; display: flex; flex-direction: column; gap: 16px;
+}
+.eyebrow { font-size: 10px; letter-spacing: .24em; text-transform: uppercase; color: var(--shield); }
+.card h1, .card h2 { font-family: var(--font-display); font-weight: 400; margin: 0; line-height: 1.1; text-wrap: balance; }
+.card h1 { font-size: clamp(28px, 7vw, 38px); letter-spacing: .04em; }
+.card h2 { font-size: clamp(22px, 5.5vw, 28px); }
+.card p { margin: 0; color: var(--dim); line-height: 1.55; font-size: 13px; }
+.legend { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.4; }
+.legend li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: center; }
+.legend b { color: var(--ink); font-weight: 600; }
+.sw { width: 12px; height: 12px; justify-self: center; }
+.sw.threat { background: var(--threat); transform: rotate(45deg); }
+.sw.gift { background: var(--gift); border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,200,87,.25); }
+.sw.nova { border: 2px solid var(--gift); border-radius: 50%; width: 14px; height: 14px; }
+.keys { font-size: 11px; color: var(--dim); letter-spacing: .04em; line-height: 1.6; }
+kbd { font: 600 10px var(--font-ui); color: var(--ink); border: 1px solid rgba(133,146,181,.45); border-radius: 2px; padding: 1px 4px; }
+.primary {
+  font: 600 13px var(--font-ui); letter-spacing: .2em; text-transform: uppercase;
+  color: var(--void); background: var(--shield); border: 0; border-radius: 3px;
+  padding: 13px 16px; cursor: pointer;
+}
+.primary:hover { background: #c4f1ff; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-variant-numeric: tabular-nums; }
+.stats div { display: flex; flex-direction: column; gap: 4px; }
+.stats span { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
+.stats strong { font-family: var(--font-display); font-weight: 400; font-size: 20px; }
+.newbest { color: var(--gift); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+@media (max-width: 420px) { .hud .center { display: none; } .card { padding: 20px 18px 18px; } }
+@media (prefers-reduced-motion: reduce) { .nova.ready { animation: none; } }
+</style>
+
+<canvas id="game" aria-label="Orbit Keeper game field"></canvas>
+
+<div class="hud" aria-live="off">
+  <div class="group">
+    <span class="label" data-t="score">Score</span>
+    <span class="score" id="score">0</span>
+    <span class="combo" id="combo"></span>
+  </div>
+  <div class="group center">
+    <span class="label" id="cycle">Cycle 01</span>
+    <span class="label" id="bearing">BRG 000°</span>
+  </div>
+  <div class="group right">
+    <span class="label" data-t="hull">Core hull</span>
+    <div class="hull" id="hull"><i></i><i></i><i></i></div>
+    <div class="buttons">
+      <button class="iconbtn" id="langBtn" type="button">العربية</button>
+      <button class="iconbtn" id="soundBtn" type="button">Sound on</button>
+      <button class="iconbtn" id="pauseBtn" type="button" data-t="pause">Pause</button>
+    </div>
+  </div>
+</div>
+
+<button class="nova" id="novaBtn" type="button" hidden><div class="fill" id="novaFill"></div><span id="novaText">Nova 0%</span></button>
+
+<div class="overlay" id="overlay">
+  <div class="card" id="titleCard">
+    <span class="eyebrow" data-t="eyebrow">Arcade · one core, one shield</span>
+    <h1 data-t="title">Orbit Keeper</h1>
+    <p data-t="intro">Debris is falling toward the core. Turn the shield to meet it. Each deflection in a row builds your multiplier.</p>
+    <ul class="legend">
+      <li><span class="sw threat"></span><span data-t="l1"></span></li>
+      <li><span class="sw gift"></span><span data-t="l2"></span></li>
+      <li><span class="sw nova"></span><span data-t="l3"></span></li>
+    </ul>
+    <div class="keys" data-t="keys"></div>
+    <button class="primary" id="startBtn" type="button" data-t="start">Start orbit</button>
+  </div>
+
+  <div class="card" id="overCard" hidden>
+    <span class="eyebrow" style="color: var(--threat)" data-t="breached">Core breached</span>
+    <h2 id="overLine">The orbit held for a while.</h2>
+    <div class="stats">
+      <div><span data-t="score">Score</span><strong id="finalScore">0</strong></div>
+      <div><span data-t="best">Best</span><strong id="finalBest">0</strong></div>
+      <div><span data-t="cycleL">Cycle</span><strong id="finalCycle">1</strong></div>
+    </div>
+    <span class="newbest" id="newBest" hidden data-t="newBest">New personal best</span>
+    <button class="primary" id="retryBtn" type="button" data-t="retry">Try again</button>
+  </div>
+
+  <div class="card" id="pauseCard" hidden>
+    <span class="eyebrow" data-t="paused">Paused</span>
+    <h2 data-t="frozen">Orbit frozen</h2>
+    <p data-t="wait">The debris will wait.</p>
+    <button class="primary" id="resumeBtn" type="button" data-t="resume">Resume</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const TAU = Math.PI * 2;
+  const css = getComputedStyle(document.documentElement);
+  const C = {
+    void: css.getPropertyValue('--void').trim() || '#0a1022',
+    ink: css.getPropertyValue('--ink').trim() || '#e6ecfb',
+    dim: css.getPropertyValue('--dim').trim() || '#8592b5',
+    shield: css.getPropertyValue('--shield').trim() || '#9fe7ff',
+    threat: css.getPropertyValue('--threat').trim() || '#ff6b5a',
+    gift: css.getPropertyValue('--gift').trim() || '#ffc857',
+    core: css.getPropertyValue('--core').trim() || '#ffb347',
+  };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- language ----------
+  const I18N = {
+    score: ['Score', 'النتيجة'], hull: ['Core hull', 'درع النواة'], pause: ['Pause', 'إيقاف'],
+    eyebrow: ['Arcade · one core, one shield', 'لعبة أركيد · نواة واحدة ودرع واحد'], title: ['Orbit Keeper', 'حارس المدار'],
+    intro: ['Debris is falling toward the core. Turn the shield to meet it. Each deflection in a row builds your multiplier.', 'الحطام يتساقط نحو النواة. أدِر الدرع لتصدّه. كل صدّ متتالٍ يرفع مُضاعِف النقاط.'],
+    l1: ['<b>Red shards:</b> block them with the shield. Three hits and the core is lost.', '<b>الشظايا الحمراء:</b> اصدّها بالدرع. ثلاث إصابات وتخسر النواة.'],
+    l2: ['<b>Gold sparks:</b> let them through. They feed the core and charge your nova.', '<b>الشرارات الذهبية:</b> دَعها تمرّ. فهي تغذّي النواة وتشحن الموجة.'],
+    l3: ['<b>Nova:</b> at full charge, clears every shard on screen.', '<b>الموجة:</b> عند اكتمال الشحن تُزيل كل الشظايا من الشاشة.'],
+    keys: ['Aim with the mouse or drag on touch. <kbd>A</kbd>/<kbd>D</kbd> or arrow keys also turn the shield. <kbd>Space</kbd> or double-tap fires the nova. <kbd>P</kbd> pauses.', 'صوّب بالفأرة أو اسحب بإصبعك. يمكنك أيضًا تدوير الدرع بمفتاحي <kbd>A</kbd>/<kbd>D</kbd> أو بالأسهم. اضغط <kbd>Space</kbd> أو انقر مرتين بسرعة لإطلاق الموجة، و<kbd>P</kbd> للإيقاف المؤقت.'],
+    start: ['Start orbit', 'ابدأ المدار'], breached: ['Core breached', 'سقطت النواة'], best: ['Best', 'الأفضل'], cycleL: ['Cycle', 'الدورة'],
+    newBest: ['New personal best', 'رقم قياسي شخصي جديد'], retry: ['Try again', 'حاول مرة أخرى'],
+    paused: ['Paused', 'متوقف مؤقتًا'], frozen: ['Orbit frozen', 'المدار متجمّد'], wait: ['The debris will wait.', 'الحطام سينتظرك.'], resume: ['Resume', 'استئناف'],
+  };
+  let lang = 'en';
+  try { lang = location.hash === '#ar' ? 'ar' : (localStorage.getItem('orbitKeeperLang') || ((navigator.language || '').toLowerCase().startsWith('ar') ? 'ar' : 'en')); } catch (e) {}
+  const T = (en, ar) => lang === 'ar' ? ar : en;
+
+  const $ = id => document.getElementById(id);
+  const cv = $('game'), ctx = cv.getContext('2d');
+  const ui = {
+    score: $('score'), combo: $('combo'), cycle: $('cycle'), bearing: $('bearing'), hull: $('hull').children,
+    nova: $('novaBtn'), novaFill: $('novaFill'), novaText: $('novaText'),
+    titleCard: $('titleCard'), overCard: $('overCard'), pauseCard: $('pauseCard'),
+  };
+
+  let W = 0, H = 0, cx = 0, cy = 0, unit = 0;
+  const S = {
+    mode: 'title', score: 0, best: 0, chain: 0, combo: 1, hull: 3, energy: 0,
+    t: 0, clock: 0, cycle: 1, shieldA: -Math.PI / 2, targetA: -Math.PI / 2, arc: 0.95,
+    coreR: 0, shieldR: 0, spawnD: 0, objs: [], parts: [], floats: [], rings: [],
+    shake: 0, flash: 0, shieldFlash: 0, spawnT: 0.5, overT: 0, keyDir: 0,
+  };
+  try { S.best = parseInt(localStorage.getItem('orbitKeeperBest') || '0', 10) || 0; } catch (e) {}
+
+  function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2; cy = H / 2 + (W > H ? 8 : 0);
+    unit = Math.min(W, H);
+    S.coreR = unit * 0.055;
+    S.shieldR = unit * 0.19;
+    S.spawnD = Math.hypot(W, H) / 2 + 30;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Starfield
+  const stars = Array.from({ length: 140 }, () => ({
+    a: Math.random() * TAU, d: Math.sqrt(Math.random()), s: Math.random() * 1.4 + 0.3,
+    tw: Math.random() * TAU, sp: (Math.random() * 0.02 + 0.005),
+  }));
+
+  // ---------- Audio ----------
+  let AC = null, muted = false;
+  function audioInit() {
+    if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } }
+    if (AC && AC.state === 'suspended') AC.resume().catch(() => {});
+  }
+  function tone(f, dur, type = 'sine', vol = 0.07, f2) {
+    if (!AC || muted || S.mode !== 'play') return;
+    const t = AC.currentTime;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + dur + 0.03);
+  }
+  const sfx = {
+    deflect: () => tone(420 * (1 + S.combo * 0.09), 0.09, 'triangle', 0.06, 760 * (1 + S.combo * 0.09)),
+    gift: () => { tone(660, 0.12, 'sine', 0.06, 990); setTimeout(() => tone(990, 0.16, 'sine', 0.05, 1320), 70); },
+    lost: () => tone(300, 0.2, 'square', 0.03, 180),
+    hit: () => tone(140, 0.35, 'sawtooth', 0.09, 50),
+    nova: () => { tone(200, 0.6, 'sine', 0.09, 1200); tone(100, 0.7, 'triangle', 0.06, 600); },
+    cycle: () => tone(523, 0.25, 'sine', 0.04, 784),
+  };
+
+  // ---------- Helpers ----------
+  function angDiff(a, b) { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU; return d; }
+  function pos(o) { return { x: cx + Math.cos(o.a) * o.d, y: cy + Math.sin(o.a) * o.d }; }
+  function burst(x, y, color, n, speed = 1) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * TAU, v = (Math.random() * 160 + 60) * speed * (unit / 700);
+      S.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: Math.random() * 1.2 + 1.2, c: color, s: Math.random() * 2 + 1 });
+    }
+  }
+  function float(x, y, text, color, big = false) { S.floats.push({ x, y, text, c: color, life: 1, big }); }
+  const playing = () => S.mode === 'play';
+
+  function spawn(kind, a) {
+    const t = playing() ? S.t : 14;
+    const base = unit * (0.2 + Math.min(0.36, t * 0.0042));
+    const v = base * (0.85 + Math.random() * 0.3) * (kind === 'gift' ? 0.82 : 1);
+    S.objs.push({
+      kind, a, d: S.spawnD, prevD: S.spawnD, v,
+      r: unit * (kind === 'gift' ? 0.015 : 0.013),
+      spin: Math.random() * TAU,
+      w: kind === 'drifter' ? (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.3) : 0,
+      state: 'in', life: 1,
+    });
+  }
+
+  function updateCombo() { S.combo = Math.min(8, 1 + Math.floor(S.chain / 6)); }
+
+  function onShield(o) {
+    const p = pos(o);
+    if (o.kind === 'gift') {
+      o.dead = true;
+      burst(p.x, p.y, C.gift, 14, 0.8);
+      if (playing()) { S.chain = 0; updateCombo(); float(p.x, p.y, T('spark lost', 'ضاعت شرارة'), C.gift); sfx.lost(); }
+      return;
+    }
+    o.state = 'out'; o.x = p.x; o.y = p.y;
+    const off = (Math.random() - 0.5) * 0.9, sp = o.v * 1.7;
+    o.vx = Math.cos(o.a + off) * sp; o.vy = Math.sin(o.a + off) * sp;
+    burst(p.x, p.y, C.shield, 10);
+    S.shieldFlash = 1;
+    if (playing()) {
+      S.chain++; updateCombo();
+      const pts = 10 * S.combo; S.score += pts;
+      float(p.x, p.y, '+' + pts, C.shield);
+      sfx.deflect();
+    }
+  }
+
+  function onCore(o) {
+    o.dead = true;
+    const p = pos(o);
+    if (o.kind === 'gift') {
+      burst(p.x, p.y, C.gift, 18, 0.9);
+      S.rings.push({ r: S.coreR, grow: unit * 0.5, life: 1, c: C.gift, w: 2 });
+      if (playing()) {
+        S.chain++; updateCombo();
+        const pts = 25 * S.combo; S.score += pts;
+        S.energy = Math.min(100, S.energy + 34);
+        float(cx, cy - S.coreR * 2.2, '+' + pts, C.gift);
+        sfx.gift();
+      }
+      return;
+    }
+    burst(p.x, p.y, C.threat, playing() ? 28 : 10, 1.3);
+    if (!playing()) return;
+    S.hull--; S.chain = 0; updateCombo();
+    S.shake = reduced ? 0 : 14; S.flash = 1;
+    sfx.hit();
+    if (S.hull <= 0) gameOver();
+  }
+
+  function nova() {
+    if (!playing() || S.energy < 100) return;
+    S.energy = 0;
+    S.rings.push({ r: S.coreR, grow: Math.hypot(W, H) * 1.1, life: 1, c: C.gift, w: 4 });
+    let n = 0;
+    for (const o of S.objs) {
+      if (o.state === 'in' && o.kind !== 'gift') {
+        const p = pos(o); burst(p.x, p.y, C.gift, 10); o.dead = true; n++;
+      }
+    }
+    const pts = n * 5 * S.combo; S.score += pts;
+    float(cx, cy + S.coreR * 2.6, n ? T(`nova ×${n}  +${pts}`, `موجة ×${n}  +${pts}`) : T('nova', 'موجة'), C.gift, true);
+    sfx.nova();
+  }
+
+  // ---------- Game flow ----------
+  function show(card) {
+    for (const c of [ui.titleCard, ui.overCard, ui.pauseCard]) c.hidden = c !== card;
+  }
+  function start() {
+    audioInit();
+    Object.assign(S, { mode: 'play', score: 0, chain: 0, combo: 1, hull: 3, energy: 0, t: 0, cycle: 1, objs: [], floats: [], rings: [], spawnT: 0.8, overT: 0 });
+    show(null);
+    ui.nova.hidden = false;
+    cv.focus && cv.focus();
+  }
+  function gameOver() {
+    S.mode = 'over'; S.overT = 1.1;
+    ui.nova.hidden = true;
+    const isBest = S.score > S.best;
+    if (isBest) { S.best = S.score; try { localStorage.setItem('orbitKeeperBest', String(S.best)); } catch (e) {} }
+    $('finalScore').textContent = S.score.toLocaleString();
+    $('finalBest').textContent = S.best.toLocaleString();
+    $('finalCycle').textContent = S.cycle;
+    $('newBest').hidden = !isBest || S.score === 0;
+    const lines = T(['The orbit held for a while.', 'The core went dark.', 'Debris wins this round.', 'One more orbit?'], ['صمد المدار لبعض الوقت.', 'انطفأت النواة.', 'الحطام فاز بهذه الجولة.', 'مدار آخر؟']);
+    $('overLine').textContent = S.cycle >= 4 ? T('A long, steady watch.', 'حراسة طويلة وثابتة.') : lines[Math.floor(Math.random() * lines.length)];
+  }
+  function pause(on) {
+    if (on && S.mode === 'play') { S.mode = 'paused'; show(ui.pauseCard); }
+    else if (!on && S.mode === 'paused') { S.mode = 'play'; show(null); last = performance.now(); }
+  }
+
+  // ---------- Input ----------
+  const keys = new Set();
+  window.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (['arrowleft', 'arrowright', 'a', 'd', ' '].includes(k)) e.preventDefault();
+    if (k === 'arrowleft' || k === 'a') keys.add('l');
+    if (k === 'arrowright' || k === 'd') keys.add('r');
+    if (k === ' ') { if (S.mode === 'play') nova(); }
+    if (k === 'p' || k === 'escape') pause(S.mode === 'play');
+    if (k === 'enter' && (S.mode === 'title' || (S.mode === 'over' && S.overT <= 0))) start();
+  });
+  window.addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'arrowleft' || k === 'a') keys.delete('l');
+    if (k === 'arrowright' || k === 'd') keys.delete('r');
+  });
+  let lastTap = 0, pointerDown = false;
+  function aimAt(e) { S.targetA = Math.atan2(e.clientY - cy, e.clientX - cx); }
+  cv.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' || pointerDown) aimAt(e); });
+  cv.addEventListener('pointerdown', e => {
+    pointerDown = true; aimAt(e); audioInit();
+    if (e.pointerType !== 'mouse') {
+      const now = performance.now();
+      if (now - lastTap < 280) nova();
+      lastTap = now;
+    }
+  });
+  window.addEventListener('pointerup', () => { pointerDown = false; });
+  window.addEventListener('pointercancel', () => { pointerDown = false; });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(true); });
+
+  $('startBtn').addEventListener('click', start);
+  $('retryBtn').addEventListener('click', start);
+  $('resumeBtn').addEventListener('click', () => pause(false));
+  $('pauseBtn').addEventListener('click', () => { if (S.mode === 'play') pause(true); else pause(false); });
+  ui.nova.addEventListener('click', nova);
+  const soundLabel = () => { $('soundBtn').textContent = muted ? T('Sound off', 'الصوت مغلق') : T('Sound on', 'الصوت مفعّل'); };
+  $('soundBtn').addEventListener('click', () => { muted = !muted; soundLabel(); audioInit(); });
+  function applyLang() {
+    document.documentElement.lang = lang; document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.querySelectorAll('[data-t]').forEach(n => { const d = I18N[n.dataset.t]; if (d) n.innerHTML = d[lang === 'ar' ? 1 : 0]; });
+    $('langBtn').textContent = lang === 'ar' ? 'English' : 'العربية';
+    $('langBtn').setAttribute('lang', lang === 'ar' ? 'en' : 'ar');
+    soundLabel();
+    for (const k in hudCache) delete hudCache[k];
+  }
+  $('langBtn').addEventListener('click', () => { lang = lang === 'ar' ? 'en' : 'ar'; try { localStorage.setItem('orbitKeeperLang', lang); } catch (e) {} applyLang(); });
+
+  // ---------- Update ----------
+  function update(dt) {
+    S.clock += dt;
+    if (playing()) {
+      S.t += dt;
+      const c = 1 + Math.floor(S.t / 25);
+      if (c !== S.cycle) { S.cycle = c; float(cx, cy - S.shieldR - unit * 0.08, T('cycle ', 'الدورة ') + String(c).padStart(2, '0'), C.ink, true); sfx.cycle(); }
+    }
+
+    // Shield steering
+    const kd = (keys.has('r') ? 1 : 0) - (keys.has('l') ? 1 : 0);
+    if (kd) S.targetA = S.shieldA + kd * 0.6;
+    if (S.mode === 'title' || S.mode === 'over') {
+      let best = null;
+      for (const o of S.objs) if (o.state === 'in' && o.kind !== 'gift' && o.d > S.shieldR * 0.95 && (!best || o.d < best.d)) best = o;
+      S.targetA = best ? best.a : S.shieldA + 0.3;
+    }
+    const diff = angDiff(S.targetA, S.shieldA);
+    const maxStep = (kd ? 4.6 : 13) * dt;
+    S.shieldA += Math.max(-maxStep, Math.min(maxStep, diff));
+    S.shieldA = ((S.shieldA % TAU) + TAU) % TAU;
+
+    // Spawning
+    if (S.mode !== 'paused') {
+      S.spawnT -= dt;
+      if (S.spawnT <= 0) {
+        const t = playing() ? S.t : 14;
+        S.spawnT = Math.max(0.3, 1.05 - t * 0.011) * (0.7 + Math.random() * 0.6);
+        const a = Math.random() * TAU, r = Math.random();
+        if (r < 0.17) spawn('gift', a);
+        else if (t > 45 && r < 0.32) spawn('drifter', a);
+        else if (t > 25 && r < 0.42) { for (let i = -1; i <= 1; i++) spawn('threat', a + i * 0.2); S.spawnT += 0.5; }
+        else spawn('threat', a);
+      }
+    }
+
+    // Objects
+    for (const o of S.objs) {
+      if (o.dead) continue;
+      if (o.state === 'in') {
+        o.prevD = o.d; o.d -= o.v * dt; o.a += o.w * dt; o.spin += dt * 3;
+        if (o.prevD > S.shieldR && o.d <= S.shieldR) {
+          const tol = S.arc / 2 + o.r / S.shieldR;
+          if (Math.abs(angDiff(o.a, S.shieldA)) <= tol) { onShield(o); continue; }
+        }
+        if (o.d <= S.coreR + o.r) onCore(o);
+      } else {
+        o.x += o.vx * dt; o.y += o.vy * dt; o.spin += dt * 9; o.life -= dt * 1.4;
+        if (o.life <= 0) o.dead = true;
+      }
+    }
+    S.objs = S.objs.filter(o => !o.dead);
+
+    for (const p of S.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.96; p.vy *= 0.96; p.life -= p.decay * dt; }
+    S.parts = S.parts.filter(p => p.life > 0);
+    for (const f of S.floats) { f.y -= 28 * dt; f.life -= dt * 0.9; }
+    S.floats = S.floats.filter(f => f.life > 0);
+    for (const r of S.rings) { r.life -= dt * 1.3; r.r += r.grow * dt * 1.3; }
+    S.rings = S.rings.filter(r => r.life > 0);
+
+    S.shake = Math.max(0, S.shake - dt * 40);
+    S.flash = Math.max(0, S.flash - dt * 2.5);
+    S.shieldFlash = Math.max(0, S.shieldFlash - dt * 5);
+
+    if (S.mode === 'over' && S.overT > 0) { S.overT -= dt; if (S.overT <= 0) show(ui.overCard); }
+  }
+
+  // ---------- Draw ----------
+  function circle(x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); }
+
+  function draw() {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = C.void; ctx.fillRect(0, 0, W, H);
+    if (S.shake > 0) ctx.translate((Math.random() - 0.5) * S.shake, (Math.random() - 0.5) * S.shake);
+
+    // Stars
+    const maxD = Math.hypot(W, H) / 2;
+    ctx.fillStyle = C.ink;
+    for (const s of stars) {
+      const a = s.a + (reduced ? 0 : S.clock * s.sp);
+      const x = cx + Math.cos(a) * s.d * maxD, y = cy + Math.sin(a) * s.d * maxD;
+      ctx.globalAlpha = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(S.clock * 1.7 + s.tw));
+      ctx.fillRect(x, y, s.s, s.s);
+    }
+
+    // Orbit instrument: bearing ticks
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(159,231,255,0.12)'; ctx.lineWidth = 1;
+    circle(cx, cy, S.shieldR); ctx.stroke();
+    ctx.setLineDash([2, 10]);
+    circle(cx, cy, S.shieldR * 1.9); ctx.stroke();
+    ctx.setLineDash([]);
+    for (let deg = 0; deg < 360; deg += 10) {
+      const a = (deg * Math.PI / 180) - Math.PI / 2;
+      const major = deg % 90 === 0, mid = deg % 30 === 0;
+      const r1 = S.shieldR + unit * 0.022, r2 = r1 + (major ? 10 : mid ? 6 : 3);
+      ctx.strokeStyle = major ? 'rgba(159,231,255,0.45)' : 'rgba(159,231,255,0.18)';
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); ctx.stroke();
+      if (major) {
+        ctx.fillStyle = 'rgba(133,146,181,0.7)'; ctx.font = '600 9px "IBM Plex Mono", monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const rl = r2 + 11;
+        ctx.fillText(String(deg).padStart(3, '0'), cx + Math.cos(a) * rl, cy + Math.sin(a) * rl);
+      }
+    }
+
+    // Rings
+    for (const r of S.rings) {
+      ctx.globalAlpha = Math.max(0, r.life) * 0.8; ctx.strokeStyle = r.c; ctx.lineWidth = r.w;
+      circle(cx, cy, r.r); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Core glow
+    const pulse = 1 + Math.sin(S.clock * 3) * 0.05;
+    const hurt = playing() || S.mode === 'paused' ? (3 - S.hull) / 3 : 0;
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, S.coreR * 3.2);
+    g.addColorStop(0, `rgba(255,${Math.round(179 - hurt * 80)},${Math.round(71 - hurt * 20)},0.5)`);
+    g.addColorStop(1, 'rgba(255,179,71,0)');
+    ctx.fillStyle = g; circle(cx, cy, S.coreR * 3.2); ctx.fill();
+    ctx.fillStyle = hurt > 0.6 ? C.threat : C.core; circle(cx, cy, S.coreR * pulse); ctx.fill();
+    ctx.fillStyle = '#fff6e2'; ctx.globalAlpha = 0.85; circle(cx, cy, S.coreR * 0.42 * pulse); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Hull segments
+    const hullShown = S.mode === 'title' ? 3 : S.hull;
+    for (let i = 0; i < 3; i++) {
+      const a0 = -Math.PI / 2 + i * TAU / 3 + 0.18, a1 = a0 + TAU / 3 - 0.36;
+      ctx.strokeStyle = i < hullShown ? C.core : 'rgba(133,146,181,0.25)';
+      ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, S.coreR * 1.45, a0, a1); ctx.stroke();
+    }
+    // Energy arc
+    if (S.energy > 0 && (playing() || S.mode === 'paused')) {
+      const full = S.energy >= 100;
+      ctx.strokeStyle = C.gift; ctx.lineWidth = full ? 3 : 2;
+      ctx.globalAlpha = full ? 0.6 + 0.4 * Math.sin(S.clock * 8) : 0.85;
+      ctx.beginPath(); ctx.arc(cx, cy, S.coreR * 1.8, -Math.PI / 2, -Math.PI / 2 + TAU * S.energy / 100); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Shield
+    const a0 = S.shieldA - S.arc / 2, a1 = S.shieldA + S.arc / 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(159,231,255,0.16)'; ctx.lineWidth = unit * 0.034;
+    ctx.beginPath(); ctx.arc(cx, cy, S.shieldR, a0, a1); ctx.stroke();
+    ctx.strokeStyle = C.shield; ctx.lineWidth = Math.max(3, unit * 0.009);
+    ctx.beginPath(); ctx.arc(cx, cy, S.shieldR, a0, a1); ctx.stroke();
+    if (S.shieldFlash > 0) {
+      ctx.globalAlpha = S.shieldFlash; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = unit * 0.02;
+      ctx.beginPath(); ctx.arc(cx, cy, S.shieldR, a0, a1); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    ctx.lineCap = 'butt';
+
+    // Objects
+    for (const o of S.objs) {
+      let x, y, dx, dy;
+      if (o.state === 'in') { const p = pos(o); x = p.x; y = p.y; dx = Math.cos(o.a); dy = Math.sin(o.a); ctx.globalAlpha = 1; }
+      else { x = o.x; y = o.y; const m = Math.hypot(o.vx, o.vy) || 1; dx = -o.vx / m; dy = -o.vy / m; ctx.globalAlpha = Math.max(0, o.life); }
+      const col = o.kind === 'gift' ? C.gift : C.threat;
+      // trail
+      const len = unit * (o.kind === 'gift' ? 0.05 : 0.07);
+      const tg = ctx.createLinearGradient(x, y, x + dx * len, y + dy * len);
+      tg.addColorStop(0, col); tg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.strokeStyle = tg; ctx.lineWidth = o.r * 0.9;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * len, y + dy * len); ctx.stroke();
+      ctx.save(); ctx.translate(x, y); ctx.rotate(o.spin);
+      ctx.fillStyle = col;
+      if (o.kind === 'gift') {
+        circle(0, 0, o.r * 0.75); ctx.fill();
+        ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.setLineDash([3, 4]);
+        circle(0, 0, o.r * 1.5); ctx.stroke(); ctx.setLineDash([]);
+      } else if (o.kind === 'drifter') {
+        ctx.beginPath(); ctx.moveTo(o.r * 1.3, 0); ctx.lineTo(-o.r * 0.8, o.r); ctx.lineTo(-o.r * 0.8, -o.r); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#ffd2cc'; ctx.lineWidth = 1; ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.moveTo(0, -o.r * 1.2); ctx.lineTo(o.r, 0); ctx.lineTo(0, o.r * 1.2); ctx.lineTo(-o.r, 0); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
+    // Particles
+    for (const p of S.parts) { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.s, p.s); }
+    // Floating text
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const f of S.floats) {
+      ctx.globalAlpha = Math.min(1, f.life * 1.6); ctx.fillStyle = f.c;
+      ctx.font = lang === 'ar' ? (f.big ? '900 17px Cairo, sans-serif' : '700 13px Cairo, sans-serif') : (f.big ? '400 15px Michroma, sans-serif' : '600 12px "IBM Plex Mono", monospace');
+      ctx.fillText(f.big ? f.text.toUpperCase() : f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    if (S.flash > 0) { ctx.globalAlpha = S.flash * 0.22; ctx.fillStyle = C.threat; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  }
+
+  // ---------- HUD ----------
+  const hudCache = {};
+  function setText(el, key, v) { if (hudCache[key] !== v) { hudCache[key] = v; el.textContent = v; } }
+  function hud() {
+    const live = S.mode === 'play' || S.mode === 'paused';
+    setText(ui.score, 'score', (live || S.mode === 'over' ? S.score : S.best).toLocaleString());
+    setText(ui.combo, 'combo', live && S.combo > 1 ? T(`×${S.combo} multiplier · ${S.chain} chain`, `مضاعِف ×${S.combo} · سلسلة ${S.chain}`) : (S.mode === 'title' && S.best ? T(`best ${S.best.toLocaleString()}`, `الأفضل ${S.best.toLocaleString()}`) : ''));
+    setText(ui.cycle, 'cycle', T('Cycle ', 'الدورة ') + String(S.cycle).padStart(2, '0'));
+    const brg = Math.round(((S.shieldA + Math.PI / 2) * 180 / Math.PI + 360) % 360);
+    setText(ui.bearing, 'brg', T('BRG ', 'الاتجاه ') + String(brg).padStart(3, '0') + '°');
+    const hullN = S.mode === 'title' ? 3 : S.hull;
+    for (let i = 0; i < 3; i++) ui.hull[i].classList.toggle('off', i >= hullN);
+    const e = Math.round(S.energy);
+    if (hudCache.energy !== e) {
+      hudCache.energy = e;
+      ui.novaFill.style.width = e + '%';
+      ui.nova.classList.toggle('ready', e >= 100);
+      ui.novaText.textContent = e >= 100 ? T('Nova ready', 'الموجة جاهزة') : T(`Nova ${e}%`, `الموجة ${e}%`);
+    }
+  }
+
+  // ---------- Loop ----------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (S.mode !== 'paused') update(dt);
+    draw(); hud();
+    requestAnimationFrame(frame);
+  }
+  applyLang();
+  show(ui.titleCard);
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>

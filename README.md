@@ -6,6 +6,10 @@ A collection of 14 browser games in **English and Arabic**: quick brain games, w
 
 ## Play online
 
+**Website:** https://aminabouzenadapro.github.io/pocket-arcade/ (Arabic: https://aminabouzenadapro.github.io/pocket-arcade/#ar is set by the switch on the page)
+
+For live multiplayer with friends, use the claude.ai links:
+
 | Game | Link |
 |---|---|
 | Pocket Arcade (all games) | https://claude.ai/artifact/6cADi2YUmej2ti4PEcU1MK |
